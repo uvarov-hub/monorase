@@ -1381,7 +1381,7 @@ function netReconnect(ms){const N0=NET;setTimeout(()=>{if(NET!==N0||!NET.peer||N
 addEventListener('visibilitychange',()=>{if(!document.hidden&&NET&&NET.peer&&NET.peer.disconnected)netReconnect(200);});
 function netRoster(){if(!NET||NET.role!=='host')return;netSend({t:'roster',list:[NET.myC].concat(NETG().map(g=>g.c)),bots:NET.bots});}
 function netHost(code){netNew('host',(code||mkCode()).toUpperCase());const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer('monorase-'+NET.code.toLowerCase());NET.peer=pr;
- pr.on('open',()=>{if(NET===N0){NET.status=NETG().length?'В заезде игроков: '+(NETG().length+1):'Ждём игроков… Не закрывайте эту страницу, пока все не подключатся';NET.err=false;}});
+ pr.on('open',()=>{if(NET===N0){NET.status=NETG().length?'В заезде игроков: '+(NETG().length+1):'Заезд создан ✓ Ждём игроков… Не закрывайте эту страницу';NET.err=false;}});
  pr.on('error',netErr);pr.on('disconnected',()=>{if(NET===N0){NET.status='Связь с сервером прервалась — переподключаемся…';netReconnect(1000);}});
  pr.on('connection',c=>{if(NET!==N0)return;if(NET.guests.length>=5){c.on('open',()=>{netSendTo(c,{t:'full'});setTimeout(()=>c.close(),600);});return;}
   const g={conn:c,c:0,open:false};NET.guests.push(g);
@@ -1442,7 +1442,7 @@ function face(c,x,y,r,on){ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill
 function heroStrip(y){const n=CHARS.length,r=Math.min(H*.055,W/(n*2.7)),my=NET?NET.myC:sel.c[0];
  for(let c=0;c<n;c++){const x=W/2+(c-(n-1)/2)*r*2.5;face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 03.11-fb · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
