@@ -1315,13 +1315,20 @@ function netLib(cb){if(window.Peer)return cb();const s=document.createElement('s
 function netOpen(){mode='net';}
 function netNew(role,code){if(NET)netLeave(true);NET={role,code,guests:[],status:'Соединяемся…',myC:sel.c[0],bots:true,err:false,open:false,roster:[]};mode='net';}
 function netLeave(silent){if(NET){try{for(const g of NET.guests)g.conn.close();if(NET.conn)NET.conn.close();if(NET.peer)NET.peer.destroy();}catch(e){}}NET=null;if(!silent){mode='select';paused=false;}}
-function netErr(e){if(!NET)return;const t=e&&e.type;NET.err=true;
- NET.status=t==='peer-unavailable'?'Заезд с таким кодом не найден — проверьте код':t==='unavailable-id'?'Код занят, создаём другой…':(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed')?'Нет связи с сервером — проверьте интернет':'Ошибка соединения ('+(t||'?')+')';
- if(t==='unavailable-id'&&NET.role==='host')setTimeout(()=>netHost(),300);}
+function netErr(e){if(!NET)return;const t=e&&e.type,N0=NET;
+ if(t==='peer-unavailable'&&NET.role==='guest'&&!NET.open){NET.tries=(NET.tries||0)+1;
+  if(NET.tries<=20){NET.err=false;NET.status='Ищем заезд '+NET.code+'… (попытка '+NET.tries+'). У хозяина игра должна быть открыта на экране';setTimeout(()=>{if(NET===N0&&!NET.open)netConnect();},3000);}
+  else{NET.err=true;NET.status='Заезд '+NET.code+' не найден. Проверьте код и что у хозяина игра открыта на экране';}return;}
+ if(t==='unavailable-id'&&NET.role==='host'){NET.status='Код занят, создаём другой…';setTimeout(()=>netHost(),300);return;}
+ if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'||t==='disconnected'){NET.err=false;NET.status='Связь с сервером прервалась — переподключаемся…';netReconnect(1500);return;}
+ NET.err=true;NET.status='Ошибка соединения ('+(t||'?')+')';}
+// вкладку усыпили (ушли в мессенджер) — при возвращении снова подключаемся к серверу с тем же кодом
+function netReconnect(ms){const N0=NET;setTimeout(()=>{if(NET!==N0||!NET.peer||NET.peer.destroyed)return;if(NET.peer.disconnected){try{NET.peer.reconnect();}catch(e){}}},ms||0);}
+addEventListener('visibilitychange',()=>{if(!document.hidden&&NET&&NET.peer&&NET.peer.disconnected)netReconnect(200);});
 function netRoster(){if(!NET||NET.role!=='host')return;netSend({t:'roster',list:[NET.myC].concat(NETG().map(g=>g.c)),bots:NET.bots});}
 function netHost(code){netNew('host',(code||mkCode()).toUpperCase());const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer('monorase-'+NET.code.toLowerCase());NET.peer=pr;
- pr.on('open',()=>{if(NET===N0){NET.status='Ждём игроков… Отправьте им код или ссылку';NET.err=false;}});
- pr.on('error',netErr);
+ pr.on('open',()=>{if(NET===N0){NET.status=NETG().length?'В заезде игроков: '+(NETG().length+1):'Ждём игроков… Не закрывайте эту страницу, пока все не подключатся';NET.err=false;}});
+ pr.on('error',netErr);pr.on('disconnected',()=>{if(NET===N0){NET.status='Связь с сервером прервалась — переподключаемся…';netReconnect(1000);}});
  pr.on('connection',c=>{if(NET!==N0)return;if(NET.guests.length>=5){c.on('open',()=>{netSendTo(c,{t:'full'});setTimeout(()=>c.close(),600);});return;}
   const g={conn:c,c:0,open:false};NET.guests.push(g);
   c.on('open',()=>{g.open=true;NET.status='В заезде игроков: '+(NETG().length+1);NET.err=false;netRoster();});
@@ -1333,11 +1340,14 @@ function netHostOn(g,m){if(!NET)return;
  else if(m.t==='again'){if(mode==='results')startRace();}}
 function netGuestGone(g){if(!NET||g.gone)return;g.gone=true;g.open=false;NET.guests=NET.guests.filter(x=>x!==g);NET.status='Игрок отключился. В заезде: '+(NETG().length+1);
  const p=g.p;if(p&&p.remote){p.remote=false;p.ai=true;p.skill=.7;p.jumpP=.7;p.aggr=.5;}netRoster();}
-function netJoin(code){code=String(code).trim().toUpperCase();netNew('guest',code);const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer();NET.peer=pr;pr.on('error',netErr);
- pr.on('open',()=>{if(NET!==N0)return;const c=pr.connect('monorase-'+code.toLowerCase(),{reliable:true});NET.conn=c;
-  c.on('open',()=>{NET.open=true;NET.err=false;NET.status='Подключились! Ждём старта';netSend({t:'hello',c:NET.myC});});
-  c.on('data',netGuestOn);c.on('close',netHostGone);c.on('error',netHostGone);});
- setTimeout(()=>{if(NET===N0&&!NET.open&&!NET.err){NET.status='Не удаётся соединиться. Попробуйте подключить один из телефонов к Wi-Fi';NET.err=true;}},15000);});}
+function netConnect(){const N0=NET;if(!NET||!NET.peer||NET.peer.destroyed)return;if(NET.peer.disconnected){netReconnect(0);setTimeout(()=>{if(NET===N0)netConnect();},1500);return;}
+ const c=NET.peer.connect('monorase-'+NET.code.toLowerCase(),{reliable:true});NET.conn=c;NET.connT=Date.now();
+ c.on('open',()=>{if(NET!==N0)return;NET.open=true;NET.err=false;NET.status='Подключились! Ждём старта';netSend({t:'hello',c:NET.myC});});
+ c.on('data',netGuestOn);c.on('close',()=>{if(NET===N0&&NET.open)netHostGone();});c.on('error',()=>{if(NET===N0&&NET.open)netHostGone();});
+ setTimeout(()=>{if(NET===N0&&!NET.open&&NET.conn===c&&!NET.err){NET.err=true;NET.status='Заезд найден, но соединиться не удаётся. Подключите один из телефонов к Wi-Fi и попробуйте снова';}},20000);}
+function netJoin(code){code=String(code).trim().toUpperCase();netNew('guest',code);NET.status='Ищем заезд '+code+'…';const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer();NET.peer=pr;pr.on('error',netErr);
+ pr.on('disconnected',()=>{if(NET===N0&&!NET.open)netReconnect(1000);});
+ pr.on('open',()=>{if(NET===N0&&!NET.conn)netConnect();});});}
 function netHostGone(){if(!NET||NET.hostGone)return;NET.hostGone=true;NET.open=false;NET.err=true;NET.status='Хозяин заезда отключился';mode='net';}
 function netGuestOn(m){if(!NET)return;
  if(m.t==='roster'){NET.roster=m.list;NET.bots=m.bots;}
