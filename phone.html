@@ -814,12 +814,15 @@ const N=im=>cyber?night(im):LIGHT?illL(im):ill(im);
 function mkPlayer(i,c,x,dz){return{i,ch:CHARS[c],x,z:START*SEG+dz,speed:0,vx:0,kv:0,thr:0,brk:0,revT:0,pitch:0,steer:0,lastSteer:0,jh:0,vy:0,landT:0,wobT:0,tripT:0,pushCD:0,
  state:'ride',fallT:0,fallDir:1,invul:0,punchT:0,punchCD:0,punchDir:1,hitPending:false,hitFx:0,lean:0,sky:0,anim:0,rot:0,fin:false,finT:0,msg:'',msgT:0};}
 // стартовая решётка: люди сзади, 4–5 ботов впереди; всего 6 моноколесистов
-function startRace(){if(builtTR!==TR){buildTrack();builtTR=TR;}buildObs();STAT=obs.filter(o=>o.t==='ramp'||o.t==='barrier'||o.t==='pit');const hum=sel.solo?[sel.c[0]]:[sel.c[0],sel.c[1]],pool=CHARS.map((_,i)=>i).filter(i=>!hum.includes(i)).sort(()=>Math.random()-.5);
+function startRace(){if(NET&&NET.role==='guest'){if(NET.open)netSend({t:'again'});return;}if(builtTR!==TR){buildTrack();builtTR=TR;}buildObs();STAT=obs.filter(o=>o.t==='ramp'||o.t==='barrier'||o.t==='pit');const hum=NETH()?[NET.myC].concat(NETG().slice(0,5).map(g=>g.c)):sel.solo?[sel.c[0]]:[sel.c[0],sel.c[1]],pool=CHARS.map((_,i)=>i).filter(i=>!hum.includes(i)).sort(()=>Math.random()-.5);
  const grid=[[-.25,0],[.25,0],[-.6,380],[0,380],[.6,380],[0,760]];players=[];
  hum.forEach((c,i)=>players.push(mkPlayer(i,c,grid[i][0],grid[i][1])));
- while(players.length<6){const n=players.length,p=mkPlayer(n,pool.shift(),grid[n][0],grid[n][1]);p.ai=true;p.skill=.66+Math.random()*.08;p.jumpP=.6+Math.random()*.25;p.aggr=.45+Math.random()*.45;players.push(p);}
- HUM=players.filter(p=>!p.ai);race={t:-3.5,first:null,endT:0,solo:sel.solo};mode='race';paused=false;}
-function toMenu(){mode='select';paused=false;sel={c:sel.c,ready:[false,false],solo:sel.solo};}
+ while(players.length<(NETH()&&!NET.bots?hum.length:6)){const n=players.length,p=mkPlayer(n,pool.shift(),grid[n][0],grid[n][1]);p.ai=true;p.skill=.66+Math.random()*.08;p.jumpP=.6+Math.random()*.25;p.aggr=.45+Math.random()*.45;players.push(p);}
+ HUM=players.filter(p=>!p.ai);race={t:-3.5,first:null,endT:0,solo:sel.solo};mode='race';paused=false;
+ if(BOT){const p=players[0];p.skill=.95;p.jumpP=1;p.aggr=.5;}
+ if(NETH()){const G=NETG().slice(0,5);G.forEach((g,k)=>{const p=players[k+1];p.remote=true;g.p=p;g.sent=new Set();});HUM=[players[0]];NET.dyn=dynIdx();NET.status='';
+  G.forEach((g,k)=>netSendTo(g.conn,{t:'start',you:k+1,chars:players.map(p=>CHARS.indexOf(p.ch)),ai:players.map(p=>p.ai?1:0)}));}}
+function toMenu(){if(NET){mode='net';paused=false;if(NET.role==='host')netSend({t:'lobby'});return;}mode='select';paused=false;sel={c:sel.c,ready:[false,false],solo:sel.solo};}
 const who=p=>p.ai?'Бот':'Игрок '+(p.i+1);
 let HUM=[];
 const down=new Set();
@@ -828,7 +831,7 @@ addEventListener('keydown',e=>{if(GAMEKEYS.has(e.code))e.preventDefault();down.a
 addEventListener('keyup',e=>{if(GAMEKEYS.has(e.code))e.preventDefault();down.delete(e.code);});
 addEventListener('blur',()=>down.clear());
 document.addEventListener('visibilitychange',()=>down.clear());
-function onPress(c){
+function onPress(c){if(mode==='net'){if(c==='Escape')netLeave();return;}if(mode==='select'&&c==='KeyN'){netOpen();return;}
  if(c==='KeyM'){MUTED=!MUTED;musicTick();return;}
  if(mode==='select'&&(c==='Digit1'||c==='Numpad1')){sel.solo=true;sel.ready[1]=false;return;}
  if(mode==='select'&&(c==='Digit2'||c==='Numpad2')){sel.solo=false;return;}
@@ -841,7 +844,7 @@ function onPress(c){
  if(mode==='select'){for(const i of[0,1]){const k=KEYS[i];if(sel.solo&&i===1)continue;if(!sel.ready[i]){if(c===k.left)sel.c[i]=(sel.c[i]+SELN-1)%SELN;if(c===k.right)sel.c[i]=(sel.c[i]+1)%SELN;}
    if(k.jump.includes(c))sel.ready[i]=true;}
   if(sel.ready[0]&&(sel.solo||sel.ready[1]))startRace();}
- else if(mode==='race'){for(const p of players){if(p.ai)continue;const k=KEYS[p.i];if(c===k.left)p.lastSteer=-1;if(c===k.right)p.lastSteer=1;if(k.jump.includes(c))jump(p);if(k.hit.includes(c))punch(p);}}
+ else if(mode==='race'){for(const p of players){if(p.ai||p.remote)continue;const k=KEYS[p.ki!==undefined?p.ki:p.i];if(c===k.left)p.lastSteer=-1;if(c===k.right)p.lastSteer=1;if(k.jump.includes(c))jump(p);if(k.hit.includes(c))punch(p);}}
  else if(mode==='results'&&race.resT>1.5&&['Space','KeyX','Enter','NumpadEnter'].includes(c))toMenu();
 }
 const other=p=>players.filter(q=>q!==p).reduce((m,q)=>Math.abs(q.z-p.z)+Math.abs(q.x-p.x)*800<Math.abs(m.z-p.z)+Math.abs(m.x-p.x)*800?q:m);
@@ -854,8 +857,8 @@ function punch(p){if(race.t<0||p.state!=='ride'||p.punchCD>0)return;const o=othe
  p.punchDir=dir;p.punchT=.35;sfx('swing',p);p.punchCD=.6;p.hitPending=true;}
 function riderFall(o,dir,byPlayer){o.state='fall';o.fallT=0;o.fallDir=dir;o.taunt='';o.msg=byPlayer?'АЙ!':'БАМ!';o.msgT=1;
  if(o.t==='bike'&&byPlayer){o.taunt='Ты что ли дурак?!';o.tauntT=3;}}
-function tryHit(p){for(const o of players){if(o===p)continue;const dx=o.x-p.x;
-  if(o.state==='ride'&&o.invul<=0&&Math.abs(o.z-p.z)<380&&Math.abs(dx)<.55&&Math.abs(o.jh-p.jh)<300&&(Math.abs(dx)<.15||Math.sign(dx)===p.punchDir)){p.hitFx=.25;fx(o,'spark',10);shake(o,.35);sfx('punch',o,0,p);HS=Math.max(HS,.04);
+function tryHit(p){if(NET&&NET.role==='guest'&&!p.remote){netSend({t:'punch',d:p.punchDir});return;}for(const o of players){if(o===p)continue;const dx=o.x-p.x;
+  if(o.state==='ride'&&o.invul<=0&&Math.abs(o.z-p.z)<380&&Math.abs(dx)<.55&&Math.abs(o.jh-p.jh)<300&&(Math.abs(dx)<.15||Math.sign(dx)===p.punchDir)){p.hitFx=.25;fx(o,'spark',10);shake(o,.35);sfx('punch',o,0,p);HS=Math.max(HS,.04);if(o.remote){const g=NET&&NET.guests.find(x=>x.p===o);if(g)netSendTo(g.conn,{t:'hit',d:p.punchDir,ai:p.ai?1:0});return;}
    // бот бьёт живого игрока — только замедляет, с колеса не сбивает
    if(p.ai&&!o.ai){o.speed*=.78;o.wobT=.5;o.kv=p.punchDir*.5;o.invul=.35;o.msg='ОЙ!';o.msgT=.7;return;}
    // игрок бьёт бота или другого игрока — после HITS_TO_FALL ударов тот слетает
@@ -881,7 +884,7 @@ function crash(p,msg,dir){sfx('crash',p);fx(p,'spark',22);fx(p,'dust',10);shake(
 function hitStage(p,msg,keep,soft){sfx('bump',p);fx(p,'spark',12);shake(p,.55);HS=Math.max(HS,.05);if(p.wobT>0||p.tripT>0){crash(p,msg);return true;}p.speed=keep;p.wobT=1;p.msg=soft||'ТУК!';p.msgT=.8;p.invul=.35;return false;}
 function bump(p,msg,keep){p.speed=keep;p.wobT=.6;p.msg=msg;p.msgT=.8;p.invul=.35;}
 function updatePlayer(p,dt){
- const seg=segAt(p.z),k=KEYS[p.i];let sp=p.speed/MAXS;
+ const seg=segAt(p.z),k=KEYS[p.ki!==undefined?p.ki:p.i];let sp=p.speed/MAXS;
  p.invul-=dt;p.punchT-=dt;p.punchCD-=dt;p.msgT-=dt;p.landT-=dt;p.hitFx-=dt;p.wobT-=dt;p.tripT-=dt;p.pushCD-=dt;p.anim+=dt;p.boostT=(p.boostT||0)-dt;p.rampT=(p.rampT||0)-dt;if((p.fhT=(p.fhT||0)-dt)<=0)p.fh=0;p.rot+=clamp(p.speed,-2500,2500)*dt*.08;
  if(p.hitPending&&p.punchT<=.25){p.hitPending=false;tryHit(p);}
  let steer=0,thr=0,brk=0;
@@ -889,7 +892,7 @@ function updatePlayer(p,dt){
   if(p.fallT>=FALL_T){p.state='ride';p.invul=1.5;p.speed=0;}}
  else if(race.t>=0){
   // если зажаты обе стрелки — побеждает нажатая последней (раньше давало 0 и поворот «пропадал»)
-   if(p.ai||(BOT&&p.i===0)){const a=aiInput(p,dt);steer=a.s;thr=p.fin?0:a.t;brk=p.fin?.4:a.b;}
+   if(p.ai||(BOT&&HUM[0]===p)){const a=aiInput(p,dt);steer=a.s;thr=p.fin?0:a.t;brk=p.fin?.4:a.b;}
   else{const L=isDown(k.left),R=isDown(k.right);steer=L&&R?p.lastSteer:R?1:L?-1:0;if(TILT_ON&&TILT_GOT&&!L&&!R)steer=TILT;
   if(p.fin)brk=.4;else{brk=isDown(k.down)?1:0;thr=brk?0:1;/* телефон: газ сам, держишь ТОРМОЗ — тормозишь */}}
  }
@@ -1022,8 +1025,9 @@ function updCar(c,dt,veh){
   c.z+=c.sp*dt;
   if(lead&&lead.z-(c.z+c.L)<120)c.z=lead.z-c.L-120;}
 function place(p){let r=1;for(const q of players){if(q===p)continue;if(q.fin&&(!p.fin||q.finT<p.finT))r++;else if(!q.fin&&!p.fin&&q.z>p.z)r++;}return r;}
+function tiltUpd(dt){if(race.t<0)TILT0=TILT_RAW;let t=clamp((TILT_RAW-TILT0)/.28,-1,1);if(Math.abs(t)<.06)t=0;TILT+=(t-TILT)*Math.min(1,dt*12);}
 function update(dt){
-  if(race.t<0)TILT0=TILT_RAW;{let t=clamp((TILT_RAW-TILT0)/.28,-1,1);if(Math.abs(t)<.06)t=0;TILT+=(t-TILT)*Math.min(1,dt*12);}
+  tiltUpd(dt);
   if(HS>0){HS-=dt;return;}  // заморозка на пару кадров при сильном ударе
  const veh=obs.filter(o=>o.t==='car'||((o.t==='rider'||o.t==='bike')&&o.state==='ride')).concat(players.map(q=>({z:q.z,x:q.x,w:.15,sp:Math.max(0,q.speed)})));
  for(const o of obs){
@@ -1032,10 +1036,10 @@ function update(dt){
    else if(o.t==='ped'||o.t==='birds')updLife(o,dt);
    else if(o.t==='sc'&&o.kv>1){o.z+=o.kv*dt;o.spin+=o.kv*dt*.004;o.kv*=Math.exp(-2.5*dt);}
  }
- for(const p of players)updatePlayer(p,dt);updFx(dt);
+ for(const p of players){if(p.remote)netSmooth(p,dt);else updatePlayer(p,dt);}updFx(dt);
  pvp();
  race.t+=dt;
- if(mode==='race'&&race.humT!==undefined){const allH=HUM.every(p=>p.fin),all=players.every(p=>p.fin);if(allH&&race.lastH===undefined)race.lastH=race.t;if(all||(allH&&race.t-race.lastH>45)||race.t-race.humT>150){race.endT+=dt;if(race.endT>2||!all){mode='results';race.resT=0;}}}
+ if(mode==='race'&&race.humT!==undefined){const allH=players.filter(q=>!q.ai).every(p=>p.fin),all=players.every(p=>p.fin);if(allH&&race.lastH===undefined)race.lastH=race.t;if(all||(allH&&race.t-race.lastH>45)||race.t-race.humT>150){race.endT+=dt;if(race.endT>2||!all){mode='results';race.resT=0;}}}
  if(mode==='results')race.resT+=dt;
 }
 
@@ -1290,6 +1294,107 @@ function sfx(n,p,v,by){if(!AC||MUTED||mode!=='race')return;if(p&&p.ai&&!(by&&!by
  else if(n==='bump'){tone('square',220,70,.15,.16);noise(.18,.3,'bandpass',900,.7);}
  else if(n==='crash'){tone('sawtooth',160,40,.4,.22);noise(.45,.42,'lowpass',1200);noise(.25,.22,'highpass',3000,1,.05);}
 }catch(e){}}
+// ===== ИГРА ПО СЕТИ: до 6 человек, каждый на своём устройстве (PeerJS, без своего сервера) =====
+// Хозяин заезда считает ботов, машины, велосипедистов; каждый игрок — своего гонщика и шлёт его 15 раз в секунду.
+let NET=null;
+const r2=v=>Math.round((v||0)*100)/100;
+const mkCode=()=>{const A='ABCDEFGHJKMNPRSTUVWXYZ';let s='';for(let i=0;i<4;i++)s+=A[Math.floor(Math.random()*A.length)];return s;};
+const NGRID=[[-.25,0],[.25,0],[-.6,380],[0,380],[.6,380],[0,760]];
+const NETG=()=>NET&&NET.role==='host'?NET.guests.filter(g=>g.open):[];
+const NETH=()=>NETG().length>0;
+const dynIdx=()=>obs.map((o,i)=>(o.t==='car'||o.t==='bike'||o.t==='moto')?i:-1).filter(i=>i>=0);
+function packP(p){return[r2(p.x),Math.round(p.z),Math.round(p.speed),Math.round(p.jh),p.state==='fall'?1:0,r2(p.fallT),p.fallDir||1,r2(p.lean),r2(p.steer),r2(p.punchT),p.punchDir||1,r2(p.pitch),r2(p.brk),r2(p.boostT),p.fin?1:0,r2(p.finT),r2(p.tripT),r2(p.wobT),r2(p.invul)];}
+function unpackP(q,a){const n=q.nt||(q.nt={});if(!n.ok||Math.abs(a[1]-q.z)>4000){q.z=a[1];q.x=a[0];q.jh=a[3];n.ok=1;}
+ n.x=a[0];n.z=a[1];n.jh=a[3];q.speed=a[2];q.state=a[4]?'fall':'ride';q.fallT=a[5];q.fallDir=a[6];q.lean=a[7];q.steer=a[8];q.punchT=a[9];q.punchDir=a[10];
+ q.pitch=a[11];q.brk=a[12];q.boostT=a[13];q.fin=!!a[14];q.finT=a[15];q.tripT=a[16];q.wobT=a[17];q.invul=a[18];}
+// чужой гонщик: плавно догоняем последнее присланное положение (и продлеваем его вперёд по скорости)
+function netSmooth(q,dt){const n=q.nt;q.anim+=dt;q.rot+=clamp(q.speed,-2500,2500)*dt*.08;q.msgT-=dt;q.landT-=dt;q.hitFx-=dt;if(!n)return;
+ n.z+=q.speed*dt;q.z+=(n.z-q.z)*Math.min(1,dt*8);q.x+=(n.x-q.x)*Math.min(1,dt*10);q.jh+=(n.jh-q.jh)*Math.min(1,dt*15);}
+function netSendTo(c,m){try{if(c&&c.open)c.send(m);}catch(e){}}
+function netSend(m){if(!NET)return;if(NET.role==='host')for(const g of NET.guests)netSendTo(g.conn,m);else netSendTo(NET.conn,m);}
+function netLib(cb){if(window.Peer)return cb();const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5/dist/peerjs.min.js';s.onload=cb;
+ s.onerror=()=>{if(NET){NET.status='Не загрузился сетевой модуль — проверьте интернет';NET.err=true;}};document.head.appendChild(s);}
+function netOpen(){mode='net';}
+function netNew(role,code){if(NET)netLeave(true);NET={role,code,guests:[],status:'Соединяемся…',myC:sel.c[0],bots:true,err:false,open:false,roster:[]};mode='net';}
+function netLeave(silent){if(NET){try{for(const g of NET.guests)g.conn.close();if(NET.conn)NET.conn.close();if(NET.peer)NET.peer.destroy();}catch(e){}}NET=null;if(!silent){mode='select';paused=false;}}
+function netErr(e){if(!NET)return;const t=e&&e.type;NET.err=true;
+ NET.status=t==='peer-unavailable'?'Заезд с таким кодом не найден — проверьте код':t==='unavailable-id'?'Код занят, создаём другой…':(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed')?'Нет связи с сервером — проверьте интернет':'Ошибка соединения ('+(t||'?')+')';
+ if(t==='unavailable-id'&&NET.role==='host')setTimeout(()=>netHost(),300);}
+function netRoster(){if(!NET||NET.role!=='host')return;netSend({t:'roster',list:[NET.myC].concat(NETG().map(g=>g.c)),bots:NET.bots});}
+function netHost(code){netNew('host',(code||mkCode()).toUpperCase());const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer('monorase-'+NET.code.toLowerCase());NET.peer=pr;
+ pr.on('open',()=>{if(NET===N0){NET.status='Ждём игроков… Отправьте им код или ссылку';NET.err=false;}});
+ pr.on('error',netErr);
+ pr.on('connection',c=>{if(NET!==N0)return;if(NET.guests.length>=5){c.on('open',()=>{netSendTo(c,{t:'full'});setTimeout(()=>c.close(),600);});return;}
+  const g={conn:c,c:0,open:false};NET.guests.push(g);
+  c.on('open',()=>{g.open=true;NET.status='В заезде игроков: '+(NETG().length+1);NET.err=false;netRoster();});
+  c.on('data',m=>netHostOn(g,m));c.on('close',()=>netGuestGone(g));c.on('error',()=>netGuestGone(g));});});}
+function netHostOn(g,m){if(!NET)return;
+ if(m.t==='hello'||m.t==='hero'){g.c=m.c|0;netRoster();if(m.t==='hello'&&QS.has('netauto'))setTimeout(()=>{if(mode==='net')startRace();},900);}
+ else if(m.t==='p'){const p=g.p;if(p&&p.remote&&(mode==='race'||mode==='results')){unpackP(p,m.s);if(p.fin){if(race.humT===undefined)race.humT=race.t;if(!race.first)race.first=p;}}}
+ else if(m.t==='punch'){const p=g.p;if(p&&p.remote&&mode==='race'){p.punchDir=m.d;p.punchT=.35;tryHit(p);}}
+ else if(m.t==='again'){if(mode==='results')startRace();}}
+function netGuestGone(g){if(!NET||g.gone)return;g.gone=true;g.open=false;NET.guests=NET.guests.filter(x=>x!==g);NET.status='Игрок отключился. В заезде: '+(NETG().length+1);
+ const p=g.p;if(p&&p.remote){p.remote=false;p.ai=true;p.skill=.7;p.jumpP=.7;p.aggr=.5;}netRoster();}
+function netJoin(code){code=String(code).trim().toUpperCase();netNew('guest',code);const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer();NET.peer=pr;pr.on('error',netErr);
+ pr.on('open',()=>{if(NET!==N0)return;const c=pr.connect('monorase-'+code.toLowerCase(),{reliable:true});NET.conn=c;
+  c.on('open',()=>{NET.open=true;NET.err=false;NET.status='Подключились! Ждём старта';netSend({t:'hello',c:NET.myC});});
+  c.on('data',netGuestOn);c.on('close',netHostGone);c.on('error',netHostGone);});
+ setTimeout(()=>{if(NET===N0&&!NET.open&&!NET.err){NET.status='Не удаётся соединиться. Попробуйте подключить один из телефонов к Wi-Fi';NET.err=true;}},15000);});}
+function netHostGone(){if(!NET||NET.hostGone)return;NET.hostGone=true;NET.open=false;NET.err=true;NET.status='Хозяин заезда отключился';mode='net';}
+function netGuestOn(m){if(!NET)return;
+ if(m.t==='roster'){NET.roster=m.list;NET.bots=m.bots;}
+ else if(m.t==='full'){NET.status='В заезде уже 6 игроков';NET.err=true;}
+ else if(m.t==='start')netGuestStart(m);
+ else if(m.t==='s')netApply(m);
+ else if(m.t==='hit'){const me=players[NET.me];if(me)applyHit(me,m.d,m.ai);}
+ else if(m.t==='lobby'){mode='net';paused=false;}}
+function netGuestStart(m){if(builtTR!==TR){buildTrack();builtTR=TR;}buildObs();STAT=obs.filter(o=>o.t==='ramp'||o.t==='barrier'||o.t==='pit');FX=[];HS=0;NET.me=m.you;
+ players=m.chars.map((c,i)=>{const p=mkPlayer(i,c,NGRID[i][0],NGRID[i][1]);if(i!==m.you){p.remote=true;p.ai=!!m.ai[i];}else{p.ki=0;if(BOT){p.skill=.95;p.jumpP=1;p.aggr=.5;}}return p;});
+ HUM=[players[m.you]];NET.dyn=dynIdx();race={t:-3.5,first:null,endT:0,solo:true};mode='race';paused=false;NET.status='';}
+function netApply(m){if(mode!=='race'&&mode!=='results')return;if(Math.abs(m.rt-race.t)>.25)race.t=m.rt+.03;
+ for(const a of m.P){const q=players[a[0]];if(q&&q.remote)unpackP(q,a.slice(1));}
+ for(const c of m.C){const o=obs[c[0]];if(!o)continue;if(c[4]){o.gone=true;o.z=-1e9;o.nz=undefined;continue;}
+  if(o.nz===undefined||Math.abs(c[1]-o.z)>3000){o.z=c[1];o.x=c[2];}o.nz=c[1];o.nx=c[2];o.sp=c[3];o.state=c[5]?'fall':'ride';o.fallT=c[6];o.lean=c[7];o.active=!!c[8];}
+ if(m.m==='results'&&mode==='race'){mode='results';race.resT=0;}}
+// удар по гостю пришёл от хозяина: те же правила, что в tryHit
+function applyHit(o,dir,ai){if(o.state!=='ride'||o.invul>0)return;fx(o,'spark',10);shake(o,.35);sfx('punch',o);
+ if(ai){o.speed*=.78;o.wobT=.5;o.kv=dir*.5;o.invul=.35;return;}
+ if(!o.fh){o.fh=0;o.need=HITS_TO_FALL;}o.fh++;o.fhT=5;
+ if(o.fh>=o.need){o.fh=0;crash(o,'БАЦ!',dir);o.kv=dir*1.2;}else{o.speed*=.72;o.wobT=.6;o.kv=dir*.7;o.invul=.35;}}
+function guestUpdate(dt){if(typeof tiltUpd==='function')tiltUpd(dt);if(HS>0){HS-=dt;return;}race.t+=dt;if(mode==='results')race.resT+=dt;
+ for(const i of NET.dyn||[]){const o=obs[i];if(o.nz===undefined)continue;o.nz+=(o.sp||0)*dt;o.z+=(o.nz-o.z)*Math.min(1,dt*6);o.x+=(o.nx-o.x)*Math.min(1,dt*6);o.anim=(o.anim||0)+dt;if(o.state==='fall')o.fallT+=dt;}
+ for(const o of obs)if(o.t==='ped'||o.t==='birds')updLife(o,dt);
+ for(const p of players){if(p.remote)netSmooth(p,dt);else updatePlayer(p,dt);}pvp();updFx(dt);}
+function netTick(dt){if(!NET)return;NET.acc=(NET.acc||0)+dt;if(NET.acc<1/15)return;NET.acc=0;if(mode!=='race'&&mode!=='results')return;
+ if(NET.role==='host'){const G=NETG().filter(g=>g.p);if(!G.length)return;const PK=players.map((p,i)=>[i].concat(packP(p)));
+  for(const g of G){const me=g.p,P=PK.filter(a=>players[a[0]]!==me),C=[];
+   for(const i of NET.dyn||[]){const o=obs[i];if(o.gone){if(!g.sent.has(i)){g.sent.add(i);C.push([i,0,0,0,1]);}continue;}const dz=o.z-me.z;if(dz<-4000||dz>32000)continue;
+    C.push([i,Math.round(o.z),r2(o.x),Math.round(o.sp||0),0,o.state==='fall'?1:0,r2(o.fallT),r2(o.lean),o.active===false?0:1]);}
+   netSendTo(g.conn,{t:'s',rt:r2(race.t),m:mode,P,C});}}
+ else if(NET.open&&players[NET.me])netSend({t:'p',s:packP(players[NET.me])});}
+function netShare(){if(!NET)return;const url=location.origin+location.pathname.replace(/[^/]*$/,'')+'?room='+NET.code;
+ if(navigator.share)navigator.share({title:'Monomir Diana',text:'Погнали гонять! Код заезда '+NET.code,url}).catch(()=>{});
+ else if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>{if(NET)NET.status='Ссылка скопирована: '+url;}).catch(()=>{});}
+function face(c,x,y,r,on){ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle='#e7eaee';ctx.fill();ctx.clip();const im=photoOf(CHARS[c]);
+ if(im)ctx.drawImage(im,x-r*1.1,y-r*1.05,r*2.2,r*2.2*im.naturalHeight/im.naturalWidth);ctx.restore();if(on){ctx.strokeStyle=PCOL[0];ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r+3,0,7);ctx.stroke();}}
+function heroStrip(y){const n=CHARS.length,r=Math.min(H*.055,W/(n*2.7)),my=NET?NET.myC:sel.c[0];
+ for(let c=0;c<n;c++){const x=W/2+(c-(n-1)/2)*r*2.5;face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c});}}});}}
+function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');
+ if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
+  const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
+  btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
+  txt(ctx,'Ваш герой:',W/2,H*.5,fs,mute,'');heroStrip(H*.62);btn(W/2-90,H-bh-12,180,bh,'Назад',()=>{mode='select';});return;}
+ txt(ctx,NET.role==='host'?'Код заезда':'Заезд',W/2,H*.15,fs,mute,'');txt(ctx,NET.code,W/2,H*.24,Math.min(44,H*.1),ink,'900');
+ if(NET.role==='host'){const sw=Math.min(210,W*.26);btn(W/2+Math.min(90,W*.1)+20,H*.24-bh/2,sw,bh,'Поделиться ссылкой',netShare);}
+ txt(ctx,NET.status||'',W/2,H*.34,fs,NET.err?red:ink,'700');
+ const list=NET.role==='host'?[NET.myC].concat(NETG().map(g=>g.c)):(NET.roster||[]),n=Math.max(1,list.length),r=Math.min(H*.075,W/(n*3.4));
+ list.forEach((c,i)=>{const x=W/2+(i-(n-1)/2)*r*3,y=H*.46;face(c,x,y,r,false);txt(ctx,(CHARS[c]||CHARS[0]).name+(i===0?' 👑':''),x,y+r+11,Math.min(13,r*.5+4),ink,'700');});
+ txt(ctx,'Ваш герой — нажмите, чтобы сменить:',W/2,H*.63,fs*.9,mute,'');heroStrip(H*.73);
+ const bw=Math.min(200,(W-60)/3),y=H-bh-10;btn(W/2-bw*1.5-12,y,bw,bh,'Выйти',()=>netLeave());
+ if(NET.role==='host'){const ok=NETG().length>0;btn(W/2-bw/2,y,bw,bh,'Боты: '+(NET.bots?'да':'нет'),()=>{NET.bots=!NET.bots;netRoster();});
+  btn(W/2+bw/2+12,y,bw,bh,ok?'СТАРТ ▶':'Ждём игроков…',()=>{if(NETG().length)startRace();},ok);}
+ else txt(ctx,NET.open?'Ждём, когда хозяин нажмёт СТАРТ':'',W/2+bw*.5,y+bh/2,fs,mute,'');}
 const MSG_BIG=/ЗАРЯД|СУПЕР/;
 function drawPl(q,sx,sy,k,viewer){
  const jy=q.jh*k,air=clamp(q.jh/150,0,1);
@@ -1308,7 +1413,7 @@ function drawPl(q,sx,sy,k,viewer){
   if(q.hitFx>0)star(ctx,q.punchDir*400,-690,60+(.25-q.hitFx)*300,'#ffd400');
   if(l>0)puff(ctx,0,1-l,0);}
  ctx.restore();ctx.globalAlpha=1;
- drawFx(q,sx,sy,k);if(q!==viewer&&k>.05)DF(()=>{const tg=q.ai?q.ch.name:'И'+(q.i+1);ctx.font='bold 13px Arial';const tw=ctx.measureText(tg).width+14;rr(ctx,sx-tw/2,sy-jy-1080*k-14,tw,22,7,PCOL[q.i]);txt(ctx,tg,sx,sy-jy-1080*k-3,13,'#fff');});
+ drawFx(q,sx,sy,k);if(q!==viewer&&k>.05)DF(()=>{const tg=q.ai||NET?q.ch.name:'И'+(q.i+1);ctx.font='bold 13px Arial';const tw=ctx.measureText(tg).width+14;rr(ctx,sx-tw/2,sy-jy-1080*k-14,tw,22,7,PCOL[q.i]);txt(ctx,tg,sx,sy-jy-1080*k-3,13,'#fff');});
  if(q.msgT>0&&MSG_BIG.test(q.msg))DF(()=>{ctx.globalAlpha=clamp(q.msgT/.3,0,1);txt(ctx,q.msg,sx,sy-jy-(1150+150*(1-clamp(q.msgT,0,1)))*k,Math.max(13,95*k),'#ffd400','bold','#000');ctx.globalAlpha=1;});
 }
 function renderView(p,vx,vw,vh){
@@ -1413,7 +1518,7 @@ function renderSelect(){
   const by=top+2*chh+gap+42;
 for(const [i,lab] of [[0,'1 игрок'],[1,'2 игрока']]){const on=(i===0)===sel.solo,bx=W/2+(i?8:-8)-(i?0:150);
   rr(ctx,bx,by-18,150,36,18,on?ink:'#ffffff',on?null:line,1.5);txt(ctx,lab,bx+75,by,15,on?'#fff':ink,'700');}
- txt(ctx,'клавиши 1 / 2   ·   C — город',W/2,by+34,12,mute,'');btn(W/2+176,by-18,190,36,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));
+ txt(ctx,'клавиши 1 / 2   ·   C — город',W/2,by+34,12,mute,'');btn(W/2-366,by-18,190,36,'По сети 📶 (N)',()=>netOpen());btn(W/2+176,by-18,190,36,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));
  txt(ctx,sel.solo?'A / D — выбор   ·   Пробел — готов':'И1:  A / D — выбор, Пробел — готов        И2:  ← / → — выбор, Enter — готов',W/2,by+72,15,ink,'600');
  txt(ctx,'В гонке  ·  И1: W/S газ-тормоз, A/D руль, Пробел прыжок, F удар   ·   И2: стрелки, Enter прыжок, Right Option удар',W/2,by+100,13,mute,'');
   txt(ctx,'Барьеры «РЕМОНТ» — перепрыгивай  ·  трамплин подбрасывает, а прыжок в полёте = суперпрыжок  ·  ⚡ над трамплином берётся только в воздухе',W/2,by+122,13,mute,'');
@@ -1485,8 +1590,8 @@ function renderSelectM(){
    drawWheel(ctx,false,{neon:on?PCOL[0]:null});drawChar(ctx,CHARS[c],{t:clock});ctx.restore();
    UI.push({x:x0,y:y0,w:cw,h:chh,fn:()=>{sel.c[0]=c;}});}
   const bh=Math.min(46,H*.12),y1=top+2*chh+gap,by=y1+(H-y1-bh)/2;
-  const bw=Math.min(200,(W-60)/3);btn(W/2-bw*.5,by,bw,bh,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));btn(W/2-bw*1.5-12,by,bw,bh,'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
-  btn(W/2+bw*.5+12,by,bw,bh,'ПОЕХАЛИ ▶',()=>{sel.solo=true;startRace();},true);}
+  const bw=Math.min(175,(W-70)/4),X=i=>W/2-2*bw-15+i*(bw+10);btn(X(1),by,bw,bh,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));btn(X(0),by,bw,bh,'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
+  btn(X(2),by,bw,bh,'По сети 📶',()=>netOpen());btn(X(3),by,bw,bh,'ПОЕХАЛИ ▶',()=>{sel.solo=true;startRace();},true);}
 function renderOverM(){
  if(paused&&mode==='race'){const bh=Math.min(46,H*.13),bw=Math.min(220,W*.28),y=H*.6;
   btn(W/2-bw*1.5-12,y,bw,bh,'Продолжить',()=>{paused=false;TILT0=TILT_RAW;},'blue');btn(W/2-bw/2,y,bw,bh,'Заново',()=>startRace());btn(W/2+bw/2+12,y,bw,bh,'Меню',()=>toMenu());}
@@ -1494,14 +1599,16 @@ function renderOverM(){
   btn(W/2-bw-8,H-bh-10,bw,bh,'Ещё раз',()=>startRace(),'blue');btn(W/2+8,H-bh-10,bw,bh,'Меню',()=>toMenu());}}
 let last=performance.now(),fps=60,fpsN=0,fpsT=0;
 function frame(now){const dt=clamp((now-last)/1000,0,.05);last=now;clock+=dt;pollPads();fpsN++;fpsT+=dt*1000;if(fpsT>=500){fps=Math.round(fpsN*1000/fpsT);fpsN=0;fpsT=0;}
- ctx.setTransform(DPR,0,0,DPR,0,0);UI=[];musicTick();sndTick();
+ ctx.setTransform(DPR,0,0,DPR,0,0);UI=[];musicTick();sndTick();netTick(dt);
   if(H>W){ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);txt(ctx,'📱',W/2,H*.4,64,'#16181d','');txt(ctx,'Поверните телефон',W/2,H*.52,18,'#16181d','700');txt(ctx,'горизонтально',W/2,H*.52+26,18,'#16181d','700');if(mode==='race')paused=true;requestAnimationFrame(frame);return;}
- if(mode==='select')renderSelectM();else{if(!paused)update(dt);
+ if(mode==='net')renderNet();else if(mode==='select')renderSelectM();else{if(!paused||(NET&&(NET.open||NETH())))(NET&&NET.role==='guest'?guestUpdate:update)(dt);
   LOWPASS=true;ctx=LOc;LOc.setTransform(PXS,0,0,PXS,0,0);LOc.imageSmoothingEnabled=false;DEFER=[];renderRace();LOWPASS=false;ctx=SCR;
   SCR.setTransform(1,0,0,1,0,0);SCR.imageSmoothingEnabled=false;SCR.drawImage(LO,0,0,cv.width,cv.height);SCR.imageSmoothingEnabled=true;SCR.setTransform(DPR,0,0,DPR,0,0);
   for(const [f,m] of DEFER){SCR.setTransform(m.a*DPR/PXS,0,0,m.d*DPR/PXS,m.e*DPR/PXS,m.f*DPR/PXS);f();}SCR.setTransform(DPR,0,0,DPR,0,0);DEFER=[];renderRace();drawTouch();renderOverM();}requestAnimationFrame(frame);}
-const QS=new URLSearchParams(location.search),BOT=QS.has('bot');
-if(BOT){sel.solo=true;sel.c[0]=+(QS.get('ch')||0);startRace();const p=players[0];p.skill=.95;p.jumpP=1;p.aggr=.5;const n=+(QS.get('ff')||0)*60;for(let i=0;i<n;i++)update(1/60);}
+const QS=new URLSearchParams(location.search),BOT=QS.has('bot')||QS.has('auto');
+if(QS.has('ch'))sel.c[0]=+QS.get('ch');
+if(QS.get('room'))netJoin(QS.get('room'));else if(QS.get('nethost'))netHost(QS.get('nethost'));
+if(QS.has('bot')){sel.solo=true;sel.c[0]=+(QS.get('ch')||0);startRace();const p=players[0];p.skill=.95;p.jumpP=1;p.aggr=.5;const n=+(QS.get('ff')||0)*60;for(let i=0;i<n;i++)update(1/60);}
 requestAnimationFrame(frame);
 </script>
 </body>
