@@ -1310,7 +1310,59 @@ function netSmooth(q,dt){const n=q.nt;q.anim+=dt;q.rot+=clamp(q.speed,-2500,2500
  n.z+=q.speed*dt;q.z+=(n.z-q.z)*Math.min(1,dt*8);q.x+=(n.x-q.x)*Math.min(1,dt*10);q.jh+=(n.jh-q.jh)*Math.min(1,dt*15);}
 function netSendTo(c,m){try{if(c&&c.open)c.send(m);}catch(e){}}
 function netSend(m){if(!NET)return;if(NET.role==='host')for(const g of NET.guests)netSendTo(g.conn,m);else netSendTo(NET.conn,m);}
-function netLib(cb){if(window.Peer)return cb();const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5/dist/peerjs.min.js';s.onload=cb;
+// ===== СВЯЗЬ ЧЕРЕЗ FIREBASE REALTIME DATABASE =====
+// Повторяет то немногое из PeerJS, чем пользуется игра (Peer, connect, send, on), но сообщения идут через сервер Google:
+// rooms/<код>/host — хозяин на месте; rooms/<код>/h — входящие хозяину; rooms/<код>/g/<id> — входящие гостю; rooms/<код>/p/<id> — гость на месте.
+const FB_CFG={apiKey:"AIzaSyDCLHC7wJw2wdoNT8bqSZzu28vEkMNx1G8",authDomain:"monorace.firebaseapp.com",databaseURL:"https://monorace-default-rtdb.europe-west1.firebasedatabase.app",projectId:"monorace",storageBucket:"monorace.firebasestorage.app",messagingSenderId:"903122568898",appId:"1:903122568898:web:cddae97380ea6fdf1cdd5b"};
+const FB_VER='10.12.2';
+class FBConn{constructor(peer,remote,out){this.p=peer;this.peer=remote;this.out=out;this.open=false;this.h={};}
+ on(e,f){(this.h[e]=this.h[e]||[]).push(f);}emit(e,a){(this.h[e]||[]).forEach(f=>{try{f(a);}catch(err){setTimeout(()=>{throw err;});}});}
+ send(m){if(this.p.destroyed)return;this.p.db.ref(this.out).push({f:this.p.id,m:JSON.stringify(m)});}
+ close(){if(!this.open)return;this.open=false;try{this.p.db.ref(this.out).push({f:this.p.id,bye:1});}catch(e){}}}
+class FBPeer{constructor(id){this.db=firebase.database();this.h={};this.open=false;this.disconnected=false;this.destroyed=false;this.conns={};this.offs=[];
+  this.host=!!id;this.id=id||('g'+Math.random().toString(36).slice(2,9));
+  const cr=this.db.ref('.info/connected'),onC=s=>{if(this.destroyed)return;if(s.val()===true){const was=this.disconnected||!this.open;this.disconnected=false;if(was)this._up();}
+   else if(this.open){this.disconnected=true;this.emit('disconnected');}};cr.on('value',onC);this.offs.push(()=>cr.off('value',onC));
+  setTimeout(()=>{if(!this.open&&!this.destroyed)this.emit('error',{type:'fb-unreachable'});},12000);}
+ on(e,f){(this.h[e]=this.h[e]||[]).push(f);}emit(e,a){(this.h[e]||[]).forEach(f=>{try{f(a);}catch(err){setTimeout(()=>{throw err;});}});}
+ _room(id){return String(id).replace('monorase-','').toLowerCase();}
+ _up(){ // подключились к серверу (впервые или после сна вкладки)
+  if(this.host){const R='rooms/'+this._room(this.id),hr=this.db.ref(R+'/host');this.R=R;
+   hr.onDisconnect().remove();hr.set({t:firebase.database.ServerValue.TIMESTAMP,id:this.id});
+   if(!this.hb)this.hb=setInterval(()=>{if(!this.destroyed&&!this.disconnected)hr.update({t:firebase.database.ServerValue.TIMESTAMP});},5000);
+   if(!this.listening){this.listening=1;const inb=this.db.ref(R+'/h'),onM=s=>{const d=s.val();s.ref.remove();if(!d||this.destroyed)return;
+     if(d.hello){let c=this.conns[d.f];if(!c){c=new FBConn(this,d.f,R+'/g/'+d.f);this.conns[d.f]=c;this.emit('connection',c);}
+      c.send({t:'__ack'});setTimeout(()=>{if(!c.open){c.open=true;c.emit('open');}},30);}
+     else if(d.bye){const c=this.conns[d.f];if(c&&c.open){c.open=false;c.emit('close');}}
+     else{const c=this.conns[d.f];if(c&&c.open)c.emit('data',JSON.parse(d.m));}};
+    inb.on('child_added',onM);this.offs.push(()=>inb.off('child_added',onM));
+    const pr=this.db.ref(R+'/p'),onGone=s=>{const c=this.conns[s.key];if(c&&c.open){c.open=false;c.emit('close');}};pr.on('child_removed',onGone);this.offs.push(()=>pr.off('child_removed',onGone));}}
+  else if(this.conn&&this.conn.R)this._presence(this.conn.R);
+  this.open=true;this.emit('open',this.id);}
+ _presence(R){const me=this.db.ref(R+'/p/'+this.id);me.onDisconnect().remove();me.set(true);}
+ connect(hostId){const R='rooms/'+this._room(hostId),c=new FBConn(this,hostId,R+'/h');c.R=R;this.conn=c;
+  this.db.ref(R+'/host').once('value').then(s=>{if(this.destroyed)return;const v=s.val();
+   if(!v){this.emit('error',{type:'peer-unavailable'});return;}
+   this._presence(R);
+   const inb=this.db.ref(R+'/g/'+this.id),onM=s2=>{const d=s2.val();s2.ref.remove();if(!d||this.destroyed)return;
+    if(d.bye){if(c.open){c.open=false;c.emit('close');}return;}const m=JSON.parse(d.m);
+    if(m&&m.t==='__ack'){if(!c.open){c.open=true;c.emit('open');}return;}if(c.open)c.emit('data',m);};
+   inb.on('child_added',onM);this.offs.push(()=>inb.off('child_added',onM));
+   // хозяин пропал: ждём 25 с (мог уйти в мессенджер), потом считаем, что ушёл
+   const hr=this.db.ref(R+'/host'),onH=s3=>{if(this.destroyed)return;if(s3.val()){clearTimeout(this.goneT);this.goneT=0;}
+    else if(c.open&&!this.goneT)this.goneT=setTimeout(()=>{if(c.open){c.open=false;c.emit('close');}},25000);};hr.on('value',onH);this.offs.push(()=>hr.off('value',onH));
+   this.db.ref(R+'/h').push({f:this.id,hello:1});
+  }).catch(()=>this.emit('error',{type:'network'}));
+  return c;}
+ reconnect(){try{firebase.database().goOnline();}catch(e){}}
+ destroy(){if(this.destroyed)return;this.destroyed=true;clearInterval(this.hb);this.offs.forEach(f=>{try{f();}catch(e){}});
+  try{for(const k in this.conns)this.conns[k].close();if(this.conn)this.conn.close();
+   if(this.host&&this.R)this.db.ref(this.R).remove();else if(this.conn&&this.conn.R)this.db.ref(this.conn.R+'/p/'+this.id).remove();}catch(e){}}}
+function netLib(cb){if(window.FB_OK)return cb();const L=(src,next)=>{const t=document.createElement('script');t.src=src;t.onload=next;
+ t.onerror=()=>{if(NET){NET.status='Не загрузился сетевой модуль (Firebase) — проверьте интернет';NET.err=true;}};document.head.appendChild(t);};
+ L('https://www.gstatic.com/firebasejs/'+FB_VER+'/firebase-app-compat.js',()=>L('https://www.gstatic.com/firebasejs/'+FB_VER+'/firebase-database-compat.js',()=>{
+  try{firebase.initializeApp(FB_CFG);window.Peer=FBPeer;window.FB_OK=1;cb();}catch(e){if(NET){NET.status='Ошибка Firebase: '+e.message;NET.err=true;}}}));}
+function netLibPeerJS(cb){if(window.Peer)return cb();const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5/dist/peerjs.min.js';s.onload=cb;
  s.onerror=()=>{if(NET){NET.status='Не загрузился сетевой модуль — проверьте интернет';NET.err=true;}};document.head.appendChild(s);}
 function netOpen(){mode='net';}
 function netNew(role,code){if(NET)netLeave(true);NET={role,code,guests:[],status:'Соединяемся…',myC:sel.c[0],bots:true,err:false,open:false,roster:[]};mode='net';}
@@ -1321,7 +1373,7 @@ function netErr(e){if(!NET)return;const t=e&&e.type,N0=NET;
   else{NET.err=true;NET.status='Заезд '+NET.code+' не найден. Проверьте код и что у хозяина игра открыта на экране';}return;}
  if(t==='unavailable-id'&&NET.role==='host'){NET.status='Код занят, создаём другой…';setTimeout(()=>netHost(),300);return;}
  if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'||t==='disconnected'){NET.err=false;NET.status='Связь с сервером прервалась — переподключаемся…';netReconnect(1500);return;}
- NET.err=true;NET.status='Ошибка соединения ('+(t||'?')+')';}
+ NET.err=true;NET.status=t==='fb-unreachable'?'Нет связи с сервером Google (Firebase) — проверьте интернет':'Ошибка соединения ('+(t||'?')+')';}
 // вкладку усыпили (ушли в мессенджер) — при возвращении снова подключаемся к серверу с тем же кодом
 function netReconnect(ms){const N0=NET;setTimeout(()=>{if(NET!==N0||!NET.peer||NET.peer.destroyed)return;if(NET.peer.disconnected){try{NET.peer.reconnect();}catch(e){}}},ms||0);}
 addEventListener('visibilitychange',()=>{if(!document.hidden&&NET&&NET.peer&&NET.peer.disconnected)netReconnect(200);});
@@ -1344,7 +1396,7 @@ function netConnect(){const N0=NET;if(!NET||!NET.peer||NET.peer.destroyed)return
  const c=NET.peer.connect('monorase-'+NET.code.toLowerCase(),{reliable:true});NET.conn=c;NET.connT=Date.now();
  c.on('open',()=>{if(NET!==N0)return;NET.open=true;NET.err=false;NET.status='Подключились! Ждём старта';netSend({t:'hello',c:NET.myC});});
  c.on('data',netGuestOn);c.on('close',()=>{if(NET===N0&&NET.open)netHostGone();});c.on('error',()=>{if(NET===N0&&NET.open)netHostGone();});
- setTimeout(()=>{if(NET===N0&&!NET.open&&NET.conn===c&&!NET.err){NET.err=true;NET.status='Заезд найден, но соединиться не удаётся. Подключите один из телефонов к Wi-Fi и попробуйте снова';}},20000);}
+ setTimeout(()=>{if(NET===N0&&!NET.open&&NET.conn===c&&!NET.err){NET.err=true;NET.status='Заезд найден, но ответа нет. Проверьте интернет у хозяина и попробуйте снова';}},20000);}
 function netJoin(code){code=String(code).trim().toUpperCase();netNew('guest',code);NET.status='Ищем заезд '+code+'…';const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer();NET.peer=pr;pr.on('error',netErr);
  pr.on('disconnected',()=>{if(NET===N0&&!NET.open)netReconnect(1000);});
  pr.on('open',()=>{if(NET===N0&&!NET.conn)netConnect();});});}
