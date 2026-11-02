@@ -1469,8 +1469,7 @@ function renderSelectM(){
    UI.push({x:x0,y:y0,w:cw,h:chh,fn:()=>{sel.c[0]=c;}});}
   const bh=Math.min(46,H*.12),y1=top+2*chh+gap,by=y1+(H-y1-bh)/2;
   const bw=Math.min(240,(W-60)/2);btn(W/2-bw-10,by,bw,bh,'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
-  btn(W/2+10,by,bw,bh,'ПОЕХАЛИ ▶',()=>{sel.solo=true;startRace();},true);
-  txt(ctx,'v3 · адрес '+location.protocol+' · защищённый: '+(window.isSecureContext?'да':'НЕТ')+' · датчик: '+TILT_ST+' · сигналов: '+TILT_N+' '+TILT_DBG+' · экран '+scrAngle()+'°',W/2,H-6,9,'#9aa0a8','');}
+  btn(W/2+10,by,bw,bh,'ПОЕХАЛИ ▶',()=>{sel.solo=true;startRace();},true);}
 function renderOverM(){
  if(paused&&mode==='race'){const bh=Math.min(46,H*.13),bw=Math.min(220,W*.28),y=H*.6;
   btn(W/2-bw*1.5-12,y,bw,bh,'Продолжить',()=>{paused=false;TILT0=TILT_RAW;},'blue');btn(W/2-bw/2,y,bw,bh,'Заново',()=>startRace());btn(W/2+bw/2+12,y,bw,bh,'Меню',()=>toMenu());}
