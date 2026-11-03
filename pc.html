@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Monomir Diana</title>
+<script>// телефон открыл компьютерную версию — переходим на телефонную (только на сайте, где файл называется pc.html)
+(function(){var ph=/Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)||(navigator.maxTouchPoints>0&&!matchMedia('(any-pointer:fine)').matches)||matchMedia('(pointer:coarse)').matches;if(ph&&/pc\.html$/.test(location.pathname)&&!/[?&]pc=1/.test(location.search))location.replace(location.pathname.replace(/pc\.html$/,'phone.html')+location.search);})();</script>
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}</style>
 </head>
 <body>
@@ -1622,7 +1624,7 @@ function renderSelect(){
  txt(ctx,'выберите персонажа · остальные станут соперниками',W/2,H*.125,15,mute,'');
  const NC=SELN,cols=4,gap=18,cw=Math.min((W-80)/cols-gap,320),chh=Math.min(H*.27,240),top=H*.165;
  for(let c=0;c<NC;c++){const row=Math.floor(c/cols),col=c%cols,cx=W/2+(col-(cols-1)/2)*(cw+gap),cy=top+row*(chh+gap),x0=cx-cw/2;
-  const s0=sel.c[0]===c,s1=sel.c[1]===c&&!sel.solo;
+  UI.push({x:x0,y:cy,w:cw,h:chh,fn:()=>{sel.c[0]=c;}});const s0=sel.c[0]===c,s1=sel.c[1]===c&&!sel.solo;
   rr(ctx,x0,cy,cw,chh,18,'#f5f6f8');
   if(s0||s1){rr(ctx,x0,cy,cw,chh,18,null,s0?PCOL[0]:PCOL[1],3);if(s0&&s1)rr(ctx,x0+6,cy+6,cw-12,chh-12,14,null,PCOL[1],3);}
   const r=Math.min(cw*.2,chh*.3),px=x0+cw*.3,py=cy+chh*.42;
@@ -1634,8 +1636,8 @@ function renderSelect(){
   let tx=x0+14;for(const i of[0,1])if(sel.c[i]===c&&!(sel.solo&&i===1)){rr(ctx,tx,cy+14,48,22,11,PCOL[i]);txt(ctx,(sel.ready[i]?'✓ ':'')+'И'+(i+1),tx+24,cy+25,12,'#fff');tx+=54;}}
   const by=top+2*chh+gap+42;
 for(const [i,lab] of [[0,'1 игрок'],[1,'2 игрока']]){const on=(i===0)===sel.solo,bx=W/2+(i?8:-8)-(i?0:150);
-  rr(ctx,bx,by-18,150,36,18,on?ink:'#ffffff',on?null:line,1.5);txt(ctx,lab,bx+75,by,15,on?'#fff':ink,'700');}
- txt(ctx,'клавиши 1 / 2   ·   C — город',W/2,by+34,12,mute,'');btn(W/2-366,by-18,190,36,'По сети 📶 (N)',()=>netOpen());btn(W/2+176,by-18,190,36,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));
+  rr(ctx,bx,by-18,150,36,18,on?ink:'#ffffff',on?null:line,1.5);txt(ctx,lab,bx+75,by,15,on?'#fff':ink,'700');UI.push({x:bx,y:by-18,w:150,h:36,fn:()=>{sel.solo=i===0;}});}
+ txt(ctx,'клавиши 1 / 2   ·   C — город',W/2,by+34,12,mute,'');btn(W/2-366,by-18,190,36,'По сети 📶 (N)',()=>netOpen());btn(W-230,H-62,210,46,'ПОЕХАЛИ ▶',()=>startRace(),true);btn(W/2+176,by-18,190,36,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));
  txt(ctx,sel.solo?'A / D — выбор   ·   Пробел — готов':'И1:  A / D — выбор, Пробел — готов        И2:  ← / → — выбор, Enter — готов',W/2,by+72,15,ink,'600');
  txt(ctx,'В гонке  ·  И1: W/S газ-тормоз, A/D руль, Пробел прыжок, F удар   ·   И2: стрелки, Enter прыжок, Right Option удар',W/2,by+100,13,mute,'');
   txt(ctx,'Барьеры «РЕМОНТ» — перепрыгивай  ·  трамплин подбрасывает, а прыжок в полёте = суперпрыжок  ·  ⚡ над трамплином берётся только в воздухе',W/2,by+122,13,mute,'');

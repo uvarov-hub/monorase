@@ -3,12 +3,12 @@
 <title>Monomir Diana</title>
 <script>
 // телефон/планшет → сенсорная версия, компьютер → версия с клавиатурой
-var touch=matchMedia('(pointer:coarse)').matches||('ontouchstart' in window);
-var V='0411a'; // номер сборки: новая ссылка = свежие файлы, а не копия из памяти браузера
+var touch=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||(navigator.maxTouchPoints>0&&!matchMedia('(any-pointer:fine)').matches)||matchMedia('(pointer:coarse)').matches||('ontouchstart' in window);
+var V='0411b'; // номер сборки: новая ссылка = свежие файлы, а не копия из памяти браузера
 location.replace((touch?'phone.html':'pc.html')+(location.search?location.search+'&':'?')+'v='+V); // ?room=КОД сохраняется
 </script>
 <style>body{font:18px Arial,sans-serif;text-align:center;padding:40px}a{display:inline-block;margin:10px;padding:14px 24px;background:#16181d;color:#fff;border-radius:24px;text-decoration:none}</style>
 </head><body>
 <p>Monomir Diana</p>
-<a href="phone.html?v=0411a">Играть на телефоне</a><a href="pc.html?v=0411a">Играть на компьютере</a>
+<a href="phone.html?v=0411b">Играть на телефоне</a><a href="pc.html?v=0411b">Играть на компьютере</a>
 </body></html>
