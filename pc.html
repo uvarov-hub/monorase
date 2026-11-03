@@ -13,7 +13,7 @@
 <script>
 'use strict';
 const cv=document.getElementById('c'),SCR=cv.getContext('2d'),LO=document.createElement('canvas'),LOc=LO.getContext('2d');let ctx=SCR,LOWPASS=false,PXS=1,DEFER=[];const DF=f=>{if(LOWPASS)DEFER.push([f,ctx.getTransform()]);else f();};
-let W=0,H=0;const DPR=Math.min(window.devicePixelRatio||1,1.5);function resize(){W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';LO.width=640;LO.height=Math.max(1,Math.round(640*H/Math.max(1,W)));PXS=LO.width/Math.max(1,W);}addEventListener('resize',resize);resize();
+let W=0,H=0,QMAX=1120,QUP=0;const DPR=Math.min(window.devicePixelRatio||1,1.5);function resize(){W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';{const Q=Math.round(Math.min(W*DPR,QMAX));LO.width=Q;LO.height=Math.max(1,Math.round(Q*H/Math.max(1,W)));}PXS=LO.width/Math.max(1,W);}addEventListener('resize',resize);resize();
 
 // ===== НАСТРОЙКИ (можно менять) =====
 // kind: human/cat/buddha; head: well/di/helmet/fixik; coat — длина куртки/пальто ниже пояса
@@ -755,14 +755,14 @@ function buildObs(){seed=777;obs=[];
  for(let n=START+60;n<FINISH-15;n+=32+Math.floor(rnd()*28)){const r=rnd(),x=pick([-.66,0,.66])+(rnd()-.5)*.2,z=n*SEG;
    if(r<.35)continue;
    // трамплин: подбрасывает выше обычного прыжка; над частью трамплинов висит заряд — достать можно только в полёте
-   else if(r<.43){const lx=pick([-.66,0,.66]);obs.push({t:'ramp',z,x:lx,L:260,w:.42,sp:0});if(rnd()<.25)obs.push({t:'plug',z:z+2600,x:lx,L:160,w:.3,sp:0,air:true});}
+   else if(r<.43){const lx=pick([-.66,0,.66]);obs.push({t:'ramp',z,x:lx,L:260,w:.42,sp:0});if(rnd()<.18)obs.push({t:'plug',z:z+2600,x:lx,L:160,w:.3,sp:0,air:true});}
    // барьер «РЕМОНТ» (перепрыгнуть или объехать) и выбоина
    else if(r<.56)obs.push(rnd()<.62?{t:'barrier',z,x:pick([-.66,0,.66]),L:60,w:.5,sp:0}:{t:'pit',z,x,L:120,w:.32,sp:0});
 else if(r<.63)obs.push({t:'car',z,x:pick([-.5,.5]),L:700,w:.55,sp:1800+rnd()*800,img:IMG.tram});
   else obs.push({t:'car',z,x,L:420,w:.46,sp:3500+rnd()*3500,img:pick(IMG.cars)});}
  // самокатисты 48–50 км/ч (чуть медленнее моноколеса), дразнятся
 // самокатистов нет
- for(let n=START+120;n<FINISH-40;n+=600+Math.floor(rnd()*240))obs.push({t:'plug',z:n*SEG,x:pick([-.6,0,.6]),L:160,w:.3,sp:0});   // розетки: +30% скорости на 3 с
+ for(let n=START+120;n<FINISH-40;n+=900+Math.floor(rnd()*300))obs.push({t:'plug',z:n*SEG,x:pick([-.6,0,.6]),L:160,w:.3,sp:0});   // розетки: +30% скорости на 3 с
  if(0)for(let i=0;i<2;i++)obs.push(npc('rider',(START+400+i*Math.floor((FINISH-800)/2))*SEG,MAXS*(.8+rnd()*.02)));   // ~70 км/ч
  // велосипедисты 15–20 км/ч
  for(let i=0;i<8;i++)obs.push(npc('bike',(START+90+i*Math.floor((FINISH-300)/8))*SEG,(2000+rnd()*670),{w:.12}));   // 15–20 км/ч
@@ -902,7 +902,7 @@ function updatePlayer(p,dt){
   // газ и тормоз нажимаются плавно; тормоз дожимается ~0.5 с
   p.thr+=(thr-p.thr)*Math.min(1,dt*(thr>p.thr?3:7));
   p.brk+=(brk-p.brk)*Math.min(1,dt*(brk>p.brk?2.5:8));
-  if(brk&&!thr&&p.speed<=30)p.revT+=dt;
+  if(brk&&!thr&&p.speed<=30&&!p.fin)p.revT+=dt;
   if(p.speed<0||p.revT>.4){ // задний ход: стоим, держим тормоз — едем назад
    const want=brk&&!thr;
    p.speed=clamp(p.speed+(want?-REVACC*p.brk:ROLL*4+BRK*p.thr)*dt,-REVMAX,0);
@@ -1243,15 +1243,15 @@ function drawBirds(o,sx,sy,k){if(k*300<3||o.fly>4)return;ctx.save();ctx.translat
    ctx.strokeStyle='#5a6070';ctx.lineWidth=18;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x-80,y+fl);ctx.lineTo(x,y);ctx.lineTo(x+80,y+fl);ctx.stroke();ctx.fillStyle='#8a8f9a';ctx.beginPath();ctx.ellipse(x,y+6,26,18,0,0,7);ctx.fill();}}
  ctx.restore();}
 // ===== ПЕРСОНАЖИ: контур + подсветка по краю (закатное солнце впереди, ночью — неон), ветер от скорости =====
-let WIND=0;const RIMC=document.createElement('canvas'),RIMS=document.createElement('canvas');RIMC.width=RIMC.height=RIMS.width=RIMS.height=640;
+let WIND=0;const RIMC=document.createElement('canvas'),RIMS=document.createElement('canvas');RIMC.width=RIMC.height=RIMS.width=RIMS.height=1024;
 const RIMG=RIMC.getContext('2d'),RIMSG=RIMS.getContext('2d');let RIM_SAVED=null,RIM_M=null;
-function rimBegin(){const M=ctx.getTransform(),s=Math.hypot(M.a,M.b);if(s*1250>540||s*1250<10)return;
- RIM_SAVED=ctx;RIM_M=M;RIMG.setTransform(1,0,0,1,0,0);RIMG.clearRect(0,0,640,640);RIMG.globalAlpha=1;RIMG.imageSmoothingEnabled=ctx.imageSmoothingEnabled;RIMG.setTransform(M.a,M.b,M.c,M.d,320,600);ctx=RIMG;}
-function rimEnd(q){if(!RIM_SAVED)return;ctx=RIM_SAVED;RIM_SAVED=null;const x=Math.round(RIM_M.e-320),y=Math.round(RIM_M.f-600);
+function rimBegin(){const M=ctx.getTransform(),s=Math.hypot(M.a,M.b);if(s*1250>940||s*1250<10)return;
+ RIM_SAVED=ctx;RIM_M=M;RIMG.setTransform(1,0,0,1,0,0);RIMG.clearRect(0,0,1024,1024);RIMG.globalAlpha=1;RIMG.imageSmoothingEnabled=ctx.imageSmoothingEnabled;RIMG.setTransform(M.a,M.b,M.c,M.d,512,990);ctx=RIMG;}
+function rimEnd(q){if(!RIM_SAVED)return;ctx=RIM_SAVED;RIM_SAVED=null;const x=Math.round(RIM_M.e-512),y=Math.round(RIM_M.f-990);
  RIMSG.setTransform(1,0,0,1,0,0);RIMSG.globalCompositeOperation='copy';RIMSG.drawImage(RIMC,0,0);RIMSG.globalCompositeOperation='source-in';
- RIMSG.fillStyle='#1c1424';RIMSG.fillRect(0,0,640,640);
+ RIMSG.fillStyle='#1c1424';RIMSG.fillRect(0,0,1024,1024);
  ctx.save();ctx.setTransform(1,0,0,1,0,0);for(const[dx,dy]of[[-1,0],[1,0],[0,1]])ctx.drawImage(RIMS,x+dx,y+dy);
- RIMSG.fillStyle=cyber?PCOL[q.i]:LIGHT?'#fffaf0':'#ffc77a';RIMSG.fillRect(0,0,640,640);RIMSG.globalCompositeOperation='source-over';
+ RIMSG.fillStyle=cyber?PCOL[q.i]:LIGHT?'#fffaf0':'#ffc77a';RIMSG.fillRect(0,0,1024,1024);RIMSG.globalCompositeOperation='source-over';
  const a=ctx.globalAlpha;ctx.globalAlpha=a*.95;ctx.drawImage(RIMS,x,y-1);ctx.globalAlpha=a*.5;ctx.drawImage(RIMS,x-1,y-1);ctx.drawImage(RIMS,x+1,y-1);ctx.globalAlpha=a;
  ctx.drawImage(RIMC,x,y);ctx.restore();}
 // ===== ЗНАКИ: трамплин — зелёная стрелка ⬆, барьер — красный «кирпич», яма — жёлтый треугольник «!» =====
@@ -1442,7 +1442,8 @@ function heroStrip(y){const n=CHARS.length+1,r=Math.min(H*.055,W/(n*2.7)),my=NET
  for(let c0=0;c0<n;c0++){const c=c0<CHARS.length?c0:-1,x=W/2+(c0-(n-1)/2)*r*2.5;
   if(c===-1&&(!HERO||my===-1)){if(HERO)face(-1,x,y,r,true);else{ctx.strokeStyle=PCOL[0];ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();txt(ctx,'✎',x,y+1,r*.9,PCOL[0],'');}UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:heroOpen});continue;}face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c:c===-1?HERO:c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 03.11c · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
+ if(typeof TILT_WANT!=='undefined')btn(8,8,Math.min(190,W*.24),Math.min(34,H*.085),'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 04.11 · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
@@ -1475,7 +1476,7 @@ function drawPl(q,sx,sy,k,viewer){
   if(q.hitFx>0)star(ctx,q.punchDir*400,-690,60+(.25-q.hitFx)*300,'#ffd400');
   if(l>0)puff(ctx,0,1-l,0);}
  ctx.restore();ctx.globalAlpha=1;
- drawFx(q,sx,sy,k);if(q!==viewer&&k>.05)DF(()=>{const tg=q.ai||NET?q.ch.name:'И'+(q.i+1);ctx.font='bold 13px Arial';const tw=ctx.measureText(tg).width+14;rr(ctx,sx-tw/2,sy-jy-1080*k-14,tw,22,7,PCOL[q.i]);txt(ctx,tg,sx,sy-jy-1080*k-3,13,'#fff');});
+ drawFx(q,sx,sy,k);if(q!==viewer&&k>.05)DF(()=>{const tg=q.ch.name;ctx.font='bold 13px Arial';const tw=ctx.measureText(tg).width+14;rr(ctx,sx-tw/2,sy-jy-1080*k-14,tw,22,7,PCOL[q.i]);txt(ctx,tg,sx,sy-jy-1080*k-3,13,'#fff');});
  if(q.msgT>0&&MSG_BIG.test(q.msg))DF(()=>{ctx.globalAlpha=clamp(q.msgT/.3,0,1);txt(ctx,q.msg,sx,sy-jy-(1150+150*(1-clamp(q.msgT,0,1)))*k,Math.max(13,95*k),'#ffd400','bold','#000');ctx.globalAlpha=1;});
 }
 function renderView(p,vx,vw,vh){
@@ -1561,7 +1562,7 @@ function renderHero(){const ink='#16181d';ctx.fillStyle='#ffffff';ctx.fillRect(0
  drawWheel(ctx,false,{neon:PCOL[0]});drawChar(ctx,HERO,{t:clock});ctx.restore();
  const cols=2,per=Math.ceil(HROWS.length/cols),x0=pw+8,bh=Math.min(44,H*.11),rh=Math.min(46,(H-bh-24)/per),cw=(W-x0-12)/cols-8;
  HROWS.forEach((R,i)=>{const col=Math.floor(i/per),row=i%per;heroRow(R,x0+col*(cw+8),8+row*rh,cw,rh-5);});
- const by=H-bh-8,bw=Math.min(200,(W-x0-30)/3);btn(x0,by,bw,bh,'🎲 Случайно',()=>heroRandom());btn(x0+bw+10,by,bw,bh,'Назад',()=>{heroSave();mode=HERO_BACK;});btn(x0+2*(bw+10),by,bw,bh,'Готово ✓',heroDone,true);}
+ const by=H-bh-8,bw=Math.min(180,(W-x0-40)/4);btn(x0,by,bw,bh,'🎲 Случайно',()=>heroRandom());btn(x0+bw+10,by,bw,bh,'↺ Заново',()=>{HERO=null;heroRandom();HERO.name='Мой герой';const n=prompt('Имя нового героя (до 12 букв):','');if(n&&n.trim())HERO.name=n.trim().slice(0,12);heroSave();});btn(x0+2*(bw+10),by,bw,bh,'Назад',()=>{heroSave();mode=HERO_BACK;});btn(x0+3*(bw+10),by,bw,bh,'Готово ✓',heroDone,true);}
 function heroMenuBtns(xr,y,h){if(HERO){const w1=Math.min(210,W*.24);btn(xr-w1-h-8,y,w1,h,'Мой: '+HERO.name,()=>{if(sel.c[0]===-1)heroOpen();else sel.c[0]=-1;},sel.c[0]===-1?'blue':false);btn(xr-h,y,h,h,'✎',heroOpen);}
  else{const w1=Math.min(200,W*.24);btn(xr-w1,y,w1,h,'✎ Свой герой',heroOpen);}}
 const photoOf=ch=>{if(ch.custom)return null;const im=PHOTO[ch.name];return im&&im.complete&&im.naturalWidth?im:null;};
@@ -1692,12 +1693,12 @@ function renderOverM(){
  if(mode==='results'&&race.resT>1){const bh=Math.min(44,H*.12),bw=Math.min(200,W*.25);
   btn(W/2-bw-8,H-bh-10,bw,bh,'Ещё раз',()=>startRace(),'blue');btn(W/2+8,H-bh-10,bw,bh,'Меню',()=>toMenu());}}
 let last=performance.now(),fps=60,fpsN=0,fpsT=0;
-function frame(now){const dt=clamp((now-last)/1000,0,.05);last=now;clock+=dt;pollPads();fpsN++;fpsT+=dt*1000;if(fpsT>=500){fps=Math.round(fpsN*1000/fpsT);fpsN=0;fpsT=0;}
+function frame(now){const dt=clamp((now-last)/1000,0,.05);last=now;clock+=dt;pollPads();fpsN++;fpsT+=dt*1000;if(fpsT>=500){fps=Math.round(fpsN*1000/fpsT);fpsN=0;fpsT=0;if(mode==='race'&&!paused){if(fps<45&&QMAX>640){QMAX=Math.max(640,QMAX-160);resize();}else if(fps>=57&&QMAX<1280&&(QUP=(QUP||0)+1)>6){QUP=0;QMAX+=80;resize();}}}
  ctx.setTransform(DPR,0,0,DPR,0,0);UI=[];musicTick();sndTick();netTick(dt);
  if(false){ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);txt(ctx,'📱',W/2,H*.4,64,'#16181d','');txt(ctx,'Поверните телефон',W/2,H*.52,18,'#16181d','700');txt(ctx,'горизонтально',W/2,H*.52+26,18,'#16181d','700');if(mode==='race')paused=true;requestAnimationFrame(frame);return;}
  if(mode==='hero')renderHero();else if(mode==='net')renderNet();else if(mode==='select')renderSelect();else{if(!paused||(NET&&(NET.open||NETH())))(NET&&NET.role==='guest'?guestUpdate:update)(dt);
-  LOWPASS=true;ctx=LOc;LOc.setTransform(PXS,0,0,PXS,0,0);LOc.imageSmoothingEnabled=false;DEFER=[];renderRace();LOWPASS=false;ctx=SCR;
-  SCR.setTransform(1,0,0,1,0,0);SCR.imageSmoothingEnabled=false;SCR.drawImage(LO,0,0,cv.width,cv.height);SCR.imageSmoothingEnabled=true;SCR.setTransform(DPR,0,0,DPR,0,0);
+  LOWPASS=true;ctx=LOc;LOc.setTransform(PXS,0,0,PXS,0,0);LOc.imageSmoothingEnabled=true;DEFER=[];renderRace();LOWPASS=false;ctx=SCR;
+  SCR.setTransform(1,0,0,1,0,0);SCR.imageSmoothingEnabled=true;SCR.drawImage(LO,0,0,cv.width,cv.height);SCR.imageSmoothingEnabled=true;SCR.setTransform(DPR,0,0,DPR,0,0);
   for(const [f,m] of DEFER){SCR.setTransform(m.a*DPR/PXS,0,0,m.d*DPR/PXS,m.e*DPR/PXS,m.f*DPR/PXS);f();}SCR.setTransform(DPR,0,0,DPR,0,0);DEFER=[];renderRace();renderOverM();}requestAnimationFrame(frame);}
 const QS=new URLSearchParams(location.search),BOT=QS.has('bot')||QS.has('auto');
 if(QS.has('ch'))sel.c[0]=+QS.get('ch');
