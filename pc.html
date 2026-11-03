@@ -751,17 +751,17 @@ function npc(t,z,base,extra){const ph=rnd()*6;return Object.assign({t,z,lane:pic
  taunt:'',tauntT:rnd()*2,msg:'',msgT:0,top:pick(['#8e44ad','#16a085','#d35400','#2c3e50','#c0392b','#27ae60']),pants:pick(['#1f2a44','#333333','#4a3b2a']),
  helmet:pick(['#f1c40f','#e74c3c','#ecf0f1','#3498db'])},extra||{});}
 function buildObs(){seed=777;obs=[];
- for(let n=START+60;n<FINISH-15;n+=24+Math.floor(rnd()*22)){const r=rnd(),x=pick([-.66,0,.66])+(rnd()-.5)*.2,z=n*SEG;
-   if(r<.3)continue;
+ for(let n=START+60;n<FINISH-15;n+=32+Math.floor(rnd()*28)){const r=rnd(),x=pick([-.66,0,.66])+(rnd()-.5)*.2,z=n*SEG;
+   if(r<.35)continue;
    // трамплин: подбрасывает выше обычного прыжка; над частью трамплинов висит заряд — достать можно только в полёте
-   else if(r<.42){const lx=pick([-.66,0,.66]);obs.push({t:'ramp',z,x:lx,L:260,w:.42,sp:0});if(rnd()<.6)obs.push({t:'plug',z:z+2600,x:lx,L:160,w:.3,sp:0,air:true});}
+   else if(r<.43){const lx=pick([-.66,0,.66]);obs.push({t:'ramp',z,x:lx,L:260,w:.42,sp:0});if(rnd()<.25)obs.push({t:'plug',z:z+2600,x:lx,L:160,w:.3,sp:0,air:true});}
    // барьер «РЕМОНТ» (перепрыгнуть или объехать) и выбоина
-   else if(r<.55)obs.push(rnd()<.62?{t:'barrier',z,x:pick([-.66,0,.66]),L:60,w:.5,sp:0}:{t:'pit',z,x,L:120,w:.32,sp:0});
-else if(r<.65)obs.push({t:'car',z,x:pick([-.5,.5]),L:700,w:.55,sp:1800+rnd()*800,img:IMG.tram});
+   else if(r<.56)obs.push(rnd()<.62?{t:'barrier',z,x:pick([-.66,0,.66]),L:60,w:.5,sp:0}:{t:'pit',z,x,L:120,w:.32,sp:0});
+else if(r<.63)obs.push({t:'car',z,x:pick([-.5,.5]),L:700,w:.55,sp:1800+rnd()*800,img:IMG.tram});
   else obs.push({t:'car',z,x,L:420,w:.46,sp:3500+rnd()*3500,img:pick(IMG.cars)});}
  // самокатисты 48–50 км/ч (чуть медленнее моноколеса), дразнятся
 // самокатистов нет
- for(let n=START+120;n<FINISH-40;n+=300+Math.floor(rnd()*120))obs.push({t:'plug',z:n*SEG,x:pick([-.6,0,.6]),L:160,w:.3,sp:0});   // розетки: +30% скорости на 3 с
+ for(let n=START+120;n<FINISH-40;n+=600+Math.floor(rnd()*240))obs.push({t:'plug',z:n*SEG,x:pick([-.6,0,.6]),L:160,w:.3,sp:0});   // розетки: +30% скорости на 3 с
  if(0)for(let i=0;i<2;i++)obs.push(npc('rider',(START+400+i*Math.floor((FINISH-800)/2))*SEG,MAXS*(.8+rnd()*.02)));   // ~70 км/ч
  // велосипедисты 15–20 км/ч
  for(let i=0;i<8;i++)obs.push(npc('bike',(START+90+i*Math.floor((FINISH-300)/8))*SEG,(2000+rnd()*670),{w:.12}));   // 15–20 км/ч
@@ -1440,7 +1440,7 @@ function face(c,x,y,r,on){ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill
 function heroStrip(y){const n=CHARS.length,r=Math.min(H*.055,W/(n*2.7)),my=NET?NET.myC:sel.c[0];
  for(let c=0;c<n;c++){const x=W/2+(c-(n-1)/2)*r*2.5;face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 03.11-fb · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 03.11b · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
