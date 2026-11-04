@@ -886,12 +886,12 @@ else if(r<.56)obs.push({t:'car',z,x:pick([-.5,.5]),L:700,w:.55,sp:1800+rnd()*800
 buildTrack();builtTR=TR;
 
 // ===== игроки и логика =====
-let mode='select',paused=false,sel={c:[0,1],ready:[false,false],solo:false},players=[],race={},clock=0,cyber=false;
+let mode='select',paused=false,sel={c:[0,1],ready:[false,false],solo:true},players=[],race={},clock=0,cyber=false;
 // ===== геймпады (Xbox/PlayStation): 1-й геймпад — игрок 1, 2-й — игрок 2 =====
 // стик/крестовина — руль, RT/↑ — газ, LT/↓ — тормоз, A/✕ — прыжок, X/□ или B/○ — удар, Start — стиль
 let padPrev=new Set();
 function pollPads(){const now=new Set(),pads=navigator.getGamepads?navigator.getGamepads():[];let pi=0;
- for(const gp of pads){if(!gp||pi>1)continue;const k=KEYS[pi],b=i=>gp.buttons[i]&&gp.buttons[i].pressed,ax=gp.axes[0]||0;
+ for(const gp of pads){if(!gp||pi>1||gp.mapping!=='standard'||gp.connected===false)continue;const k=KEYS[pi],b=i=>gp.buttons[i]&&gp.buttons[i].pressed,ax=gp.axes[0]||0;
   if(ax<-.35||b(14))now.add(k.left);if(ax>.35||b(15))now.add(k.right);if(b(7)||b(12))now.add(k.up);if(b(6)||b(13))now.add(k.down);
   if(b(0))now.add(k.jump[0]);if(b(2)||b(1))now.add(k.hit[0]);if(b(9))now.add(mode==='select'?k.jump[0]:'KeyP');if(b(8))now.add('KeyR');pi++;}
  const prev=padPrev;padPrev=now;for(const c of now)if(!prev.has(c))onPress(c);}
@@ -962,7 +962,7 @@ function onPress(c){if(mode==='hero'){if(c==='Escape'){heroSave();mode=HERO_BACK
 const other=p=>players.filter(q=>q!==p).reduce((m,q)=>Math.abs(q.z-p.z)+Math.abs(q.x-p.x)*800<Math.abs(m.z-p.z)+Math.abs(m.x-p.x)*800?q:m);
 function jump(p){if(race.t<0||p.state!=='ride')return;
  if(p.jh>0){if(p.rampT>0&&!p.superJ){p.superJ=true;p.vy+=JUMPV*.45;p.boostT=Math.max(p.boostT,2);p.msg='СУПЕРПРЫЖОК!';p.msgT=1;fx(p,'ring',1);fx(p,'boost',16);sfx('super',p);}return;}
- p.vy=JUMPV;p.jh=1;sfx('jump',p);}
+ p.vy=JUMPV;p.jh=1;p.jumpBuf=.35;sfx('jump',p);}
 function punch(p){if(race.t<0||p.state!=='ride'||p.punchCD>0)return;const o=other(p);let dir=-p.punchDir;
  if(Math.abs(o.z-p.z)<900)dir=o.x>=p.x?1:-1;
  else for(const r of obs)if((r.t==='rider'||r.t==='bike'||r.t==='moto')&&Math.abs(r.z-p.z)<900){dir=r.x>=p.x?1:-1;break;}
@@ -989,7 +989,7 @@ function aiDanger(p,lane){const look=Math.max(1500,p.speed*.7);
   if(Math.abs(o.x-lane)<(o.w+.14)/2+.05)return dz;}return 0;}
 function aiInput(p,dt){{const c2=segAt(p.z+p.speed*.9).curve;if(Math.abs(c2)>=7&&p.speed>MAXS*.6)return{s:Math.sign(c2),t:0,b:1};}if(p.aiDr>0){p.aiDr-=dt;return{s:p.aiDrS,t:.7,b:1};}{const cv=segAt(p.z).curve;if(race.t>3&&p.speed>MAXS*.7&&Math.abs(cv)>3&&Math.random()<dt*.35){p.aiDr=.9+Math.random()*1.2;p.aiDrS=Math.sign(cv);}}p.aiT=(p.aiT||0)-dt;if(p.aiLane===undefined)p.aiLane=p.x;
  if(p.aiT<=0){p.aiT=.45;if(aiDanger(p,p.aiLane)){const ls=[-.66,0,.66].filter(l=>!aiDanger(p,l)).sort((a,b)=>Math.abs(a-p.x)-Math.abs(b-p.x));if(ls.length)p.aiLane=ls[0];}else if(race.t>6&&Math.random()<.3*p.aggr){const op=other(p),dz=op.z-p.z;if(op.state==='ride'&&dz>-300&&dz<1200){const l=clamp(op.x,-.8,.8);if(!aiDanger(p,l))p.aiLane=l;}}}
- for(const o of obs){if(!(o.t==='pit'||o.t==='hole'||o.t==='barrier'||(o.t==='sc'&&!o.dead)))continue;const dz=o.z-p.z;
+ for(const o of obs){if(!(o.t==='pit'||o.t==='hole'||o.t==='barrier'||o.t==='ramp'||(o.t==='sc'&&!o.dead)))continue;const dz=o.z-p.z;
   if(dz>0&&dz<p.speed*.16+60&&Math.abs(o.x-p.x)<(o.w+.12)/2){if(p.aiSeen!==o){p.aiSeen=o;p.aiJump=Math.random()<p.jumpP;}if(p.aiJump)jump(p);break;}}
  if(p.punchCD<=0&&race.t>6){let tg=null;for(const op of players)if(op!==p&&op.state==='ride'&&op.invul<=0&&Math.abs(op.z-p.z)<340&&Math.abs(op.x-p.x)<.5){tg=op;break;}
   if(!tg)for(const r of obs)if((r.t==='rider'||r.t==='bike'||r.t==='moto')&&r.state==='ride'&&Math.abs(r.z-p.z)<340&&Math.abs(r.x-p.x)<.5){tg=r;break;}
@@ -1002,7 +1002,7 @@ function hitStage(p,msg,keep,soft){if(p.drift){p.drift=0;crash(p,msg);return tru
 function bump(p,msg,keep){p.speed=keep;p.wobT=.6;p.msg=msg;p.msgT=.8;p.invul=.35;}
 function updatePlayer(p,dt){
  const seg=segAt(p.z),k=KEYS[p.ki!==undefined?p.ki:p.i];let sp=p.speed/MAXS;
- p.invul-=dt;p.punchT-=dt;p.punchCD-=dt;p.msgT-=dt;p.landT-=dt;p.hitFx-=dt;p.wobT-=dt;p.tripT-=dt;p.pushCD-=dt;p.anim+=dt;p.boostT=(p.boostT||0)-dt;p.rampT=(p.rampT||0)-dt;p.slipT=(p.slipT||0)-dt;if(p.slipT>0){p.kv+=p.slipDir*2.2*dt*Math.min(1,p.slipT);if(Math.random()<dt*20)fx(p,'splash',1);}if((p.fhT=(p.fhT||0)-dt)<=0)p.fh=0;p.rot+=clamp(p.speed,-2500,2500)*dt*.08;
+ p.invul-=dt;p.punchT-=dt;p.punchCD-=dt;p.msgT-=dt;p.landT-=dt;p.hitFx-=dt;p.wobT-=dt;p.tripT-=dt;p.pushCD-=dt;p.anim+=dt;p.boostT=(p.boostT||0)-dt;p.rampT=(p.rampT||0)-dt;p.jumpBuf=(p.jumpBuf||0)-dt;p.slipT=(p.slipT||0)-dt;if(p.slipT>0){p.kv+=p.slipDir*2.2*dt*Math.min(1,p.slipT);if(Math.random()<dt*20)fx(p,'splash',1);}if((p.fhT=(p.fhT||0)-dt)<=0)p.fh=0;p.rot+=clamp(p.speed,-2500,2500)*dt*.08;
  if(p.hitPending&&p.punchT<=.25){p.hitPending=false;tryHit(p);}
  let steer=0,thr=0,brk=0;
  if(p.state==='fall'){p.fallT+=dt;p.speed=p.speed>0?Math.max(0,p.speed-MAXS*1.4*dt):0;p.vx=0;p.thr=p.brk=p.pitch=p.revT=0;
@@ -1076,7 +1076,7 @@ function updatePlayer(p,dt){
   else if(prevZ<=o.z+o.L&&p.z>=o.z-20){
    if(o.t==='pit'&&p.jh<30&&p.lastPud!==o){p.lastPud=o;p.speed*=.9;p.slipT=1.4;p.slipDir=Math.random()<.5?-1:1;fx(p,'splash',22);sfx('skid',p);continue;}   // споткнулся
    if(o.t==='hole'&&p.jh<40){if(p.wobT>0||p.tripT>0)crash(p,'ЯМА!');else{p.speed*=.38;p.tripT=1.3;p.msg='ОХ!';p.msgT=.9;p.invul=.45;}break;}
-    if(o.t==='ramp'&&p.lastRamp!==o&&p.jh<60){p.lastRamp=o;p.vy=JUMPV*1.45;p.jh=Math.max(p.jh,1);p.rampT=.4;p.superJ=false;p.boostT=Math.max(p.boostT,1);p.msg='ТРАМПЛИН!';p.msgT=.8;fx(p,'spark',14);shake(p,.2);sfx('ramp',p);continue;}
+    if(o.t==='ramp'&&p.lastRamp!==o&&p.jh<220){p.lastRamp=o;if(p.jumpBuf>0){p.vy=JUMPV*1.45;p.jh=Math.max(p.jh,1);p.rampT=.4;p.superJ=false;p.boostT=Math.max(p.boostT,1);fx(p,'spark',14);shake(p,.2);sfx('ramp',p);}else if(p.jh<=0){p.boostT=Math.max(p.boostT||0,.8);p.landT=.15;fx(p,'dust',6);}continue;}
     if(o.t==='barrier'&&p.lastBar!==o){p.lastBar=o;if(p.jh<110&&!o.down){o.down=1;hitStage(p,'БАРЬЕР!',p.speed*.4,'БАРЬЕР!');p.invul=.6;break;}if(!p.ai){p.msg='ОП-ПА!';p.msgT=.5;}continue;}
     if(o.t==='plug'&&p.lastPlug!==o&&(o.air?p.jh>=140:p.jh<160)){p.lastPlug=o;p.boostT=o.air?4:3;p.msg=o.air?'ЗАРЯД В ПОЛЁТЕ! ⚡':'ЗАРЯД! ⚡';p.msgT=1;fx(p,'ring',1);fx(p,'boost',18);p.flash=.35;sfx('plug',p);continue;}
    if(o.t==='sc'&&!o.dead&&p.jh<90){o.dead=true;o.kv=p.speed*.7;hitStage(p,'ОЙ!',p.speed*.5);break;}}
@@ -1578,7 +1578,7 @@ function heroStrip(y){const n=CHARS.length+1,r=Math.min(H*.055,W/(n*2.7)),my=NET
   if(c===-1&&(!HERO||my===-1)){if(HERO)face(-1,x,y,r,true);else{ctx.strokeStyle=PCOL[0];ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();txt(ctx,'✎',x,y+1,r*.9,PCOL[0],'');}UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:heroOpen});continue;}face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c:c===-1?HERO:c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
  if(typeof TILT_WANT!=='undefined')btn(8,8,Math.min(190,W*.24),Math.min(34,H*.085),'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11c · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11d · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
@@ -1734,7 +1734,7 @@ function drawHUD(p,vw,vh){
  if(race.t<0)txt(ctx,String(Math.ceil(-race.t)>3?3:Math.ceil(-race.t)),vw/2,vh*.3,120,'#ffd400','bold','#000');
  else if(race.t<.9)txt(ctx,'ПОЕХАЛИ!',vw/2,vh*.3,Math.min(90,vw/7),'#ffd400','bold','#000');
  if(false)txt(ctx,p.i?'↑ газ  ↓ тормоз  ←→ руль  Enter прыжок  Right Option удар':'W газ  S тормоз  A/D руль  Пробел прыжок  F удар',vw/2,vh*.45,15,'#fff','bold','#000');
-  if(race.t<5&&!paused&&mode==='race'){txt(ctx,TILT_ON&&TILT_GOT?'Газ сам · наклоняй телефон · держи его как сейчас':(tiltNote()||'Газ сам · руль — кнопки ◀ ▶'),vw/2,vh*.45,15,'#fff','bold','#000');txt(ctx,'Барьер — ПРЫЖОК!  Трамплин + ПРЫЖОК в полёте = СУПЕРПРЫЖОК  ·  тормоз + руль на скорости = ДРИФТ',vw/2,vh*.45+24,15,'#ffd400','bold','#000');}
+  if(race.t<5&&!paused&&mode==='race'){txt(ctx,TILT_ON&&TILT_GOT?'Газ сам · наклоняй телефон · держи его как сейчас':(tiltNote()||'Газ сам · руль — кнопки ◀ ▶'),vw/2,vh*.45,15,'#fff','bold','#000');txt(ctx,'Барьер — ПРЫЖОК!  Трамплин + ПРЫЖОК = высокий прыжок  ·  тормоз + руль на скорости = ДРИФТ',vw/2,vh*.45+24,15,'#ffd400','bold','#000');}
  if(p.fin){txt(ctx,place(p)===1?'ПОБЕДА!':'ФИНИШ!',vw/2,vh*.22,Math.min(80,vw/8),place(p)===1?'#ffd400':'#fff','bold','#000');const left=players.filter(q=>!q.fin).length;if(left)txt(ctx,'ждём остальных: '+left,vw/2,vh*.31,22,'#fff','bold','#000');}
  if(p.state==='fall'&&p.fallT>1.5)txt(ctx,'встаю на колесо…',vw/2,vh*.9,20,'#fff','bold','#000');
 }
@@ -1774,7 +1774,7 @@ for(const [i,lab] of [[0,'1 игрок'],[1,'2 игрока']]){const on=(i===0)
  txt(ctx,'клавиши 1 / 2   ·   C — город',W/2,by+34,12,mute,'');btn(W/2-366,by-18,190,36,'По сети 📶 (N)',()=>netOpen());btn(W/2+176,by+24,190,30,camLabel(),camToggle);btn(W/2+176,by-18,190,36,'Город: '+(LIGHT?'день ☀':'закат 🌆'),()=>setLight(!LIGHT));
  txt(ctx,sel.solo?'A / D — выбор   ·   Пробел — готов':'И1:  A / D — выбор, Пробел — готов        И2:  ← / → — выбор, Enter — готов',W/2,by+72,15,ink,'600');
  txt(ctx,'В гонке  ·  И1: W/S газ-тормоз, A/D руль, Пробел прыжок, F удар   ·   И2: стрелки, Enter прыжок, Right Option удар',W/2,by+100,13,mute,'');
-  txt(ctx,'Барьеры «РЕМОНТ» — перепрыгивай  ·  трамплин подбрасывает, а прыжок в полёте = суперпрыжок  ·  ⚡ над трамплином берётся только в воздухе',W/2,by+122,13,mute,'');
+  txt(ctx,'Барьеры «РЕМОНТ» — перепрыгивай  ·  на трамплине жми прыжок — взлетишь выше  ·  ⚡ над трамплином берётся только в воздухе',W/2,by+122,13,mute,'');
 }
 // ===== МУЗЫКА: Kavinsky — Nightcall по кругу =====
 const SONGS=['assets/songs/song1.m4a'];
