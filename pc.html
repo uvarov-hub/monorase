@@ -938,7 +938,7 @@ function startRace(){if(NET&&NET.role==='guest'){if(NET.open)netSend({t:'again'}
  HUM=players.filter(p=>!p.ai);race={t:-3.5,first:null,endT:0,solo:sel.solo};mode='race';paused=false;
  if(BOT){const p=players[0];p.skill=.95;p.jumpP=1;p.aggr=.5;}
  if(NETH()){const G=NETG().slice(0,5);G.forEach((g,k)=>{const p=players[k+1];p.remote=true;g.p=p;g.sent=new Set();});HUM=[players[0]];NET.dyn=dynIdx();NET.status='';
-  G.forEach((g,k)=>netSendTo(g.conn,{t:'start',you:k+1,chars:players.map(p=>{const k=CHARS.indexOf(p.ch);return k>=0?k:p.ch;}),ai:players.map(p=>p.ai?1:0)}));}}
+  G.forEach((g,k)=>netSendTo(g.conn,{t:'start',light:LIGHT,you:k+1,chars:players.map(p=>{const k=CHARS.indexOf(p.ch);return k>=0?k:p.ch;}),ai:players.map(p=>p.ai?1:0)}));}}
 function toMenu(){if(NET){mode='net';paused=false;if(NET.role==='host')netSend({t:'lobby'});return;}mode='select';paused=false;sel={c:sel.c,ready:[false,false],solo:sel.solo};}
 const who=p=>p.ai?'Бот':'Игрок '+(p.i+1);
 let HUM=[];
@@ -956,6 +956,7 @@ function onPress(c){klog(c.replace('Key','').replace('Arrow','↑').replace('Spa
  if(mode==='select'&&(c==='Digit2'||c==='Numpad2')){sel.solo=false;return;}
   if(mode==='select'&&c==='KeyC'){setLight(!LIGHT);return;}
  if(mode!=='select'){ // рестарт, меню, пауза
+  if(mode==='race'&&(c==='KeyR'||c==='Escape')){if(!paused)paused=true;else if(c==='Escape')paused=false;return;}  /* защита от случайных нажатий: только пауза */
   if(c==='KeyR'){startRace();return;}
   if(c==='Escape'){toMenu();return;}
   if(c==='KeyP'&&mode==='race'){paused=!paused;return;}
@@ -1181,7 +1182,7 @@ function poly(x1,y1,x2,y2,x3,y3,x4,y4,c){ctx.fillStyle=c;ctx.beginPath();ctx.mov
 const TH_OLD={day:{g:['#86a552','#7c9a4a'],s:['#c4b9ab','#b9aea0'],c:['#eeeeee','#d23b3b'],r:['#606369','#5a5d63'],l:'#f2f2f2'},
  cyber:{g:['#140d24','#0f0a1c'],s:['#2a1d3d','#231833'],c:['#00f0ff','#ff2bd6'],r:['#1d1d2c','#181826'],l:'#00f0ff'}};
 const PAL={
- light:{fog:[200,216,230],road:[[96,98,106],[90,92,100]],side:[[184,180,174],[176,172,166]],curb:[[222,218,212],[206,202,196]],ground:[[176,172,164],[168,164,156]],lane:[248,248,244],center:[246,196,64],
+ light:{fog:[214,230,244],road:[[96,98,106],[90,92,100]],side:[[184,180,174],[176,172,166]],curb:[[222,218,212],[206,202,196]],ground:[[176,172,164],[168,164,156]],lane:[248,248,244],center:[246,196,64],
   walls:[[230,218,198],[208,150,124],[180,194,208],[238,232,216],[166,176,188],[218,182,152]],win:[[104,140,176],[136,170,204]],lit:[[255,244,214],[230,240,250]],litP:.06,base:[132,120,112],shade:.86},
  day:{fog:[150,86,124],road:[[64,58,74],[60,54,70]],side:[[112,96,114],[106,90,108]],curb:[[156,130,146],[140,116,132]],ground:[[92,76,94],[86,70,88]],lane:[236,214,226],center:[246,186,64],
   walls:[[178,160,138],[150,92,72],[118,128,140],[192,182,162],[96,102,112],[166,120,94]],win:[[44,46,70],[66,70,100]],lit:[[255,206,120],[255,170,96],[255,228,170]],litP:.3,base:[70,44,52],shade:.74},
@@ -1191,7 +1192,10 @@ const rgbS=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`,mixC=(a,b,t)=>rgbS([a[0]+(b[0
 let LIGHT=(()=>{try{return localStorage.getItem('monomir_city')==='day';}catch(e){return false;}})();
 function setLight(v){LIGHT=v;try{localStorage.setItem('monomir_city',v?'day':'sunset');}catch(e){}}
 const curPal=()=>cyber?PAL.cyber:LIGHT?PAL.light:PAL.day;
-const fogAt=n=>{const t=clamp((n-14)/(DRAW-14),0,1);return t*t*(3-2*t)*(cyber?.9:.85);};
+const fogAt=n=>{const t=clamp((n-14)/(DRAW-14),0,1);return t*t*(3-2*t)*(cyber?.9:LIGHT?.5:.85);};
+// дальний город днём: перекрашиваем закатные силуэты в голубовато-серые (кэш)
+const DAYT=new Map();function dayTint(img,a){const k=img;let n=DAYT.get(k);if(n)return n;n=mk(img.width,img.height,g=>{g.drawImage(img,0,0);g.globalCompositeOperation='source-atop';
+ const gr=g.createLinearGradient(0,0,0,img.height);gr.addColorStop(0,'rgba(150,175,205,'+a+')');gr.addColorStop(1,'rgba(175,198,222,'+(a+.15)+')');g.fillStyle=gr;g.fillRect(0,0,img.width,img.height);});DAYT.set(k,n);return n;}
 function drawSeg(s,vw,f){const a=s.p1.screen,b=s.p2.screen,d=s.dark,P=curPal(),j=d?1:0,C=c=>mixC(c,P.fog,f);
  ctx.fillStyle=C(s.river?(LIGHT?(j?[84,132,172]:[96,146,186]):j?[60,46,96]:[70,52,108]):P.ground[j]);ctx.fillRect(0,b.y,vw,a.y-b.y);
  const k=(m,c)=>poly(a.x-a.w*m,a.y,a.x+a.w*m,a.y,b.x+b.w*m,b.y,b.x-b.w*m,b.y,c);
@@ -1240,9 +1244,11 @@ function drawBg(p,vw,vh,HZ){const g=ctx.createLinearGradient(0,0,0,HZ),off=p.sky
   layer(CITYN2,off*.6,HZ+2,vh*.3,vw);}
  else if(LIGHT){g.addColorStop(0,'#3f8fd8');g.addColorStop(.55,'#8fc4ee');g.addColorStop(1,'#e4f1f8');ctx.fillStyle=g;ctx.fillRect(0,0,vw,HZ+2);
   {const cx=vw*.76-p.x*20,cy=HZ*.24,r=Math.min(vw,vh)*.05,sg=ctx.createRadialGradient(cx,cy,0,cx,cy,r*5);sg.addColorStop(0,'rgba(255,255,240,.95)');sg.addColorStop(.2,'rgba(255,250,220,.6)');sg.addColorStop(1,'rgba(255,250,220,0)');ctx.fillStyle=sg;ctx.fillRect(cx-r*5,cy-r*5,r*10,r*10);circ(ctx,cx,cy,r,'#fffdf0');}
-  ctx.globalAlpha=.9;layer(CLOUDS,off*.15,HZ*.55,HZ*.5,vw);ctx.globalAlpha=1;
-  layer(builtTR==='msk'?CITYM:MTN,off*.25,HZ+2,builtTR==='msk'?vh*.2:vh*.17,vw);{const hz=ctx.createLinearGradient(0,HZ-vh*.22,0,HZ);hz.addColorStop(0,'rgba(190,214,236,.55)');hz.addColorStop(1,'rgba(214,230,242,.8)');ctx.fillStyle=hz;ctx.fillRect(0,HZ-vh*.22,vw,vh*.22);}
-  layer(CITYD,off*.5,HZ+2,vh*.13,vw);{const hz=ctx.createLinearGradient(0,HZ-vh*.14,0,HZ);hz.addColorStop(0,'rgba(200,220,238,.35)');hz.addColorStop(1,'rgba(214,230,242,.6)');ctx.fillStyle=hz;ctx.fillRect(0,HZ-vh*.14,vw,vh*.14);}}
+  ctx.save();for(let i=0;i<7;i++){const cx=(((i*331+off*.15)%(vw+400))+vw+400)%(vw+400)-200,cy=HZ*(.18+((i*37)%5)*.08),w=vw*(.09+((i*13)%4)*.03);ctx.fillStyle='rgba(255,255,255,.92)';
+   ctx.beginPath();ctx.ellipse(cx,cy,w,w*.28,0,0,7);ctx.ellipse(cx-w*.45,cy+w*.06,w*.55,w*.2,0,0,7);ctx.ellipse(cx+w*.4,cy+w*.05,w*.6,w*.22,0,0,7);ctx.ellipse(cx+w*.1,cy-w*.12,w*.45,w*.24,0,0,7);ctx.fill();
+   ctx.fillStyle='rgba(170,200,230,.35)';ctx.beginPath();ctx.ellipse(cx,cy+w*.14,w*.95,w*.1,0,0,7);ctx.fill();}ctx.restore();
+  layer(dayTint(builtTR==='msk'?CITYM:MTN,.78),off*.25,HZ+2,builtTR==='msk'?vh*.2:vh*.17,vw);
+  layer(dayTint(CITYD,.6),off*.5,HZ+2,vh*.13,vw);{const hz=ctx.createLinearGradient(0,HZ-vh*.05,0,HZ);hz.addColorStop(0,'rgba(220,236,248,0)');hz.addColorStop(1,'rgba(220,236,248,.35)');ctx.fillStyle=hz;ctx.fillRect(0,HZ-vh*.05,vw,vh*.05);}}
  else{g.addColorStop(0,'#1e1640');g.addColorStop(.45,'#5a2a6e');g.addColorStop(.75,'#d2507a');g.addColorStop(1,'#ffb066');ctx.fillStyle=g;ctx.fillRect(0,0,vw,HZ+2);
   {const r=vh*.16,cx=vw*.5-p.x*20,cy=HZ-vh*.01,sg=ctx.createLinearGradient(0,cy-r,0,cy);sg.addColorStop(0,'#ffe27a');sg.addColorStop(1,'#ff5a4a');ctx.save();ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,0);ctx.clip();ctx.fillStyle=sg;ctx.fillRect(cx-r,cy-r,r*2,r);
    ctx.fillStyle='#d2507a';for(let i=0;i<5;i++){const y=cy-r*.42+i*r*.11;ctx.fillRect(cx-r,y,r*2,1+i*1.2);}ctx.restore();}
@@ -1517,7 +1523,7 @@ function netErr(e){if(!NET)return;const t=e&&e.type,N0=NET;
 // вкладку усыпили (ушли в мессенджер) — при возвращении снова подключаемся к серверу с тем же кодом
 function netReconnect(ms){const N0=NET;setTimeout(()=>{if(NET!==N0||!NET.peer||NET.peer.destroyed)return;if(NET.peer.disconnected){try{NET.peer.reconnect();}catch(e){}}},ms||0);}
 addEventListener('visibilitychange',()=>{if(!document.hidden&&NET&&NET.peer&&NET.peer.disconnected)netReconnect(200);});
-function netRoster(){if(!NET||NET.role!=='host')return;netSend({t:'roster',list:[NET.myC===-1?HERO:NET.myC].concat(NETG().map(g=>g.c)),bots:NET.bots});}
+function netRoster(){if(!NET||NET.role!=='host')return;netSend({t:'roster',list:[NET.myC===-1?HERO:NET.myC].concat(NETG().map(g=>g.c)),bots:NET.bots,light:LIGHT});}
 function netHost(code){netNew('host',(code||mkCode()).toUpperCase());const N0=NET;netLib(()=>{if(NET!==N0)return;const pr=new Peer('monorase-'+NET.code.toLowerCase());NET.peer=pr;
  pr.on('open',()=>{if(NET===N0){NET.status=NETG().length?'В заезде игроков: '+(NETG().length+1):'Заезд создан ✓ Ждём игроков… Не закрывайте эту страницу';NET.err=false;}});
  pr.on('error',netErr);pr.on('disconnected',()=>{if(NET===N0){NET.status='Связь с сервером прервалась — переподключаемся…';netReconnect(1000);}});
@@ -1542,14 +1548,14 @@ function netJoin(code){code=String(code).trim().toUpperCase();netNew('guest',cod
  pr.on('open',()=>{if(NET===N0&&!NET.conn)netConnect();});});}
 function netHostGone(){if(!NET||NET.hostGone)return;NET.hostGone=true;NET.open=false;NET.err=true;NET.status='Хозяин заезда отключился';mode='net';}
 function netGuestOn(m){if(!NET)return;
- if(m.t==='roster'){NET.roster=m.list;NET.bots=m.bots;}
+ if(m.t==='roster'){NET.roster=m.list;NET.bots=m.bots;if(m.light!==undefined)LIGHT=!!m.light;}
  else if(m.t==='full'){NET.status='В заезде уже 6 игроков';NET.err=true;}
  else if(m.t==='start')netGuestStart(m);
  else if(m.t==='s')netApply(m);
  else if(m.t==='hit'){const me=players[NET.me];if(me)applyHit(me,m.d,m.ai);}
  else if(m.t==='boost'){const me=players[NET.me];if(me)motoReward(me);}
  else if(m.t==='lobby'){mode='net';paused=false;}}
-function netGuestStart(m){if(builtTR!==TR){buildTrack();builtTR=TR;}buildObs();STAT=obs.filter(o=>o.t==='ramp'||o.t==='barrier'||o.t==='pit');FX=[];HS=0;NET.me=m.you;
+function netGuestStart(m){if(m.light!==undefined)LIGHT=!!m.light;if(builtTR!==TR){buildTrack();builtTR=TR;}buildObs();STAT=obs.filter(o=>o.t==='ramp'||o.t==='barrier'||o.t==='pit');FX=[];HS=0;NET.me=m.you;
  players=m.chars.map((c,i)=>{const p=mkPlayer(i,c,NGRID[i][0],NGRID[i][1]);if(i!==m.you){p.remote=true;p.ai=!!m.ai[i];}else{p.ki=0;if(BOT){p.skill=.95;p.jumpP=1;p.aggr=.5;}}return p;});
  HUM=[players[m.you]];NET.dyn=dynIdx();race={t:-3.5,first:null,endT:0,solo:true};mode='race';paused=false;NET.status='';}
 function netApply(m){if(mode!=='race'&&mode!=='results')return;if(Math.abs(m.rt-race.t)>.25)race.t=m.rt+.03;
@@ -1582,8 +1588,10 @@ function heroStrip(y){const n=CHARS.length+1,r=Math.min(H*.055,W/(n*2.7)),my=NET
  for(let c0=0;c0<n;c0++){const c=c0<CHARS.length?c0:-1,x=W/2+(c0-(n-1)/2)*r*2.5;
   if(c===-1&&(!HERO||my===-1)){if(HERO)face(-1,x,y,r,true);else{ctx.strokeStyle=PCOL[0];ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();txt(ctx,'✎',x,y+1,r*.9,PCOL[0],'');}UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:heroOpen});continue;}face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c:c===-1?HERO:c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+ {const bw2=Math.min(190,W*.24),bh2=Math.min(34,H*.085),lb='Город: '+(LIGHT?'день ☀':'закат 🌆');if(!NET||NET.role==='host')btn(W-8-bw2,8,bw2,bh2,lb,()=>{setLight(!LIGHT);if(NET)netRoster();});
+  else txt(ctx,lb+' (выбирает хозяин)',W-12-bw2*.7,8+bh2/2,Math.min(12,W/64),'#8a8f98','700');}
  if(typeof TILT_WANT!=='undefined')btn(8,8,Math.min(190,W*.24),Math.min(34,H*.085),'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11f · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11g · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
@@ -1631,7 +1639,8 @@ function renderView(p,vx,vw,vh){
   proj(s.p1,camX-x,camY,camZ,vw,HZ,K);proj(s.p2,camX-x-dx,camY,camZ,vw,HZ,K);x+=dx;dx+=s.curve;
   if(s.p1.camera.z<=DEPTH||s.p2.screen.y>=s.p1.screen.y||s.p2.screen.y>=maxy)continue;
   drawSeg(s,vw,fogAt(n));maxy=s.p2.screen.y;}
- if(!cyber&&!LIGHT){const HZ2=HZ,cx=vw*.5-p.x*20;ctx.save();ctx.globalCompositeOperation='lighter';const g3=ctx.createLinearGradient(0,HZ2,0,vh);g3.addColorStop(0,'rgba(255,205,140,.42)');g3.addColorStop(.45,'rgba(255,150,100,.12)');g3.addColorStop(1,'rgba(255,120,80,0)');ctx.fillStyle=g3;ctx.beginPath();ctx.moveTo(cx-vw*.012,HZ2);ctx.lineTo(cx+vw*.012,HZ2);ctx.lineTo(cx+vw*.13,vh);ctx.lineTo(cx-vw*.13,vh);ctx.closePath();ctx.fill();ctx.restore();}const B=new Map(),addB=(z,it)=>{const i=Math.floor(z/SEG)-n0;if(i>=1&&i<DRAW){if(!B.has(i))B.set(i,[]);B.get(i).push(it);}};
+ if(LIGHT&&!cyber){const cx=vw*.76-p.x*20;ctx.save();ctx.globalCompositeOperation='lighter';const g3=ctx.createLinearGradient(0,HZ,0,vh);g3.addColorStop(0,'rgba(255,255,235,.3)');g3.addColorStop(.5,'rgba(255,250,230,.07)');g3.addColorStop(1,'rgba(255,250,230,0)');ctx.fillStyle=g3;ctx.beginPath();ctx.moveTo(cx-vw*.01,HZ);ctx.lineTo(cx+vw*.01,HZ);ctx.lineTo(cx+vw*.15,vh);ctx.lineTo(cx-vw*.07,vh);ctx.closePath();ctx.fill();ctx.restore();}
+  if(!cyber&&!LIGHT){const HZ2=HZ,cx=vw*.5-p.x*20;ctx.save();ctx.globalCompositeOperation='lighter';const g3=ctx.createLinearGradient(0,HZ2,0,vh);g3.addColorStop(0,'rgba(255,205,140,.42)');g3.addColorStop(.45,'rgba(255,150,100,.12)');g3.addColorStop(1,'rgba(255,120,80,0)');ctx.fillStyle=g3;ctx.beginPath();ctx.moveTo(cx-vw*.012,HZ2);ctx.lineTo(cx+vw*.012,HZ2);ctx.lineTo(cx+vw*.13,vh);ctx.lineTo(cx-vw*.13,vh);ctx.closePath();ctx.fill();ctx.restore();}const B=new Map(),addB=(z,it)=>{const i=Math.floor(z/SEG)-n0;if(i>=1&&i<DRAW){if(!B.has(i))B.set(i,[]);B.get(i).push(it);}};
  for(const o of obs)if(o.z>camZ&&o.z<camZ+DRAW*SEG)addB(o.z,{o,z:o.z});
  for(const q of players)if(q===p||q.z>p.z-120)addB(q.z,{pl:q,z:q.z});
  for(let n=DRAW-1;n>0;n--){const s=segs[n0+n];if(!s||s.p1.camera.z<=DEPTH)continue;const b=B.get(n);if(!s.sprites.length&&!b&&!s.blk)continue;
@@ -1646,7 +1655,8 @@ function renderView(p,vx,vw,vh){
    ctx.moveTo(vw/2+Math.cos(a)*r1,HZ+Math.sin(a)*r1*.7);ctx.lineTo(vw/2+Math.cos(a)*r2,HZ+Math.sin(a)*r2*.7);}ctx.stroke();}
  if(cyber){ctx.strokeStyle='rgba(170,195,255,.25)';ctx.lineWidth=1;ctx.beginPath();
   for(let i=0;i<150;i++){const x=(i*97.3+clock*70)%vw,y=(i*53.7+clock*950*(1+i%3*.25))%vh;ctx.moveTo(x,y);ctx.lineTo(x-5,y+20);}ctx.stroke();}
- if(!cyber&&!LIGHT){const HZ2=vh*.38,cx=vw*.5-p.x*20,cy=HZ2-vh*.01;ctx.save();ctx.globalCompositeOperation='lighter';const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,vh*.45);g2.addColorStop(0,'rgba(255,200,120,.32)');g2.addColorStop(.4,'rgba(255,120,80,.08)');g2.addColorStop(1,'rgba(255,90,60,0)');ctx.fillStyle=g2;ctx.fillRect(0,0,vw,vh*.7);const tx=vw*.18,ty=vh*.08;for(const[t,r,c]of[[.3,vh*.025,'rgba(255,220,150,.28)'],[.55,vh*.05,'rgba(255,130,160,.13)'],[.85,vh*.018,'rgba(180,220,255,.3)'],[1.1,vh*.07,'rgba(255,170,90,.09)']]){ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx+(tx-cx)*t,cy+(ty-cy)*t,r,0,7);ctx.fill();}ctx.restore();}{const vg=ctx.createRadialGradient(vw/2,vh*.55,Math.min(vw,vh)*.35,vw/2,vh*.55,Math.max(vw,vh)*.78);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,cyber?'rgba(12,0,24,.6)':LIGHT?'rgba(0,0,0,.12)':'rgba(0,0,0,.3)');ctx.fillStyle=vg;ctx.fillRect(0,0,vw,vh);}
+ if(LIGHT&&!cyber){const cx=vw*.76-p.x*20,cy=vh*.38*.24;ctx.save();ctx.globalCompositeOperation='lighter';const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,vh*.4);g2.addColorStop(0,'rgba(255,255,230,.32)');g2.addColorStop(1,'rgba(255,255,230,0)');ctx.fillStyle=g2;ctx.fillRect(0,0,vw,vh*.8);const tx=vw*.25,ty=vh*.3;for(const[t,r,c]of[[.3,vh*.018,'rgba(255,255,220,.3)'],[.55,vh*.03,'rgba(170,225,255,.16)'],[.8,vh*.012,'rgba(255,210,170,.28)']]){ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx+(tx-cx)*t,cy+(ty-cy)*t,r,0,7);ctx.fill();}ctx.restore();}
+  if(!cyber&&!LIGHT){const HZ2=vh*.38,cx=vw*.5-p.x*20,cy=HZ2-vh*.01;ctx.save();ctx.globalCompositeOperation='lighter';const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,vh*.45);g2.addColorStop(0,'rgba(255,200,120,.32)');g2.addColorStop(.4,'rgba(255,120,80,.08)');g2.addColorStop(1,'rgba(255,90,60,0)');ctx.fillStyle=g2;ctx.fillRect(0,0,vw,vh*.7);const tx=vw*.18,ty=vh*.08;for(const[t,r,c]of[[.3,vh*.025,'rgba(255,220,150,.28)'],[.55,vh*.05,'rgba(255,130,160,.13)'],[.85,vh*.018,'rgba(180,220,255,.3)'],[1.1,vh*.07,'rgba(255,170,90,.09)']]){ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx+(tx-cx)*t,cy+(ty-cy)*t,r,0,7);ctx.fill();}ctx.restore();}{const vg=ctx.createRadialGradient(vw/2,vh*.55,Math.min(vw,vh)*.35,vw/2,vh*.55,Math.max(vw,vh)*.78);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,cyber?'rgba(12,0,24,.6)':LIGHT?'rgba(0,0,0,.12)':'rgba(0,0,0,.3)');ctx.fillStyle=vg;ctx.fillRect(0,0,vw,vh);}
   if(p.boostT>0){const b=(Math.min(1,p.boostT)*.45).toFixed(3),bg=ctx.createRadialGradient(vw/2,vh*.55,Math.min(vw,vh)*.3,vw/2,vh*.55,Math.max(vw,vh)*.75);bg.addColorStop(0,'rgba(80,255,255,0)');bg.addColorStop(1,'rgba(80,255,255,'+b+')');ctx.fillStyle=bg;ctx.fillRect(0,0,vw,vh);}
   if(p.flash>0){ctx.fillStyle='rgba(200,255,255,'+(p.flash*.8).toFixed(3)+')';ctx.fillRect(0,0,vw,vh);}
  ctx.restore();
@@ -1749,7 +1759,7 @@ function renderRace(){const vw=HUM.length>1?Math.floor(W/2):W;
  HUM.forEach((p,i)=>{ctx.save();ctx.beginPath();ctx.rect(i*vw,0,i?W-vw:vw,H);ctx.clip();ctx.translate(i*vw,0);drawHUD(p,i?W-vw:vw,H);ctx.restore();});
  if(HUM.length>1){ctx.fillStyle='#000';ctx.fillRect(vw-2,0,4,H);}
  if(paused&&mode==='race'){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,W,H);txt(ctx,'ПАУЗА',W/2,H*.35,Math.min(72,H*.16),'#fff','italic 900');
-  txt(ctx,'P — продолжить     R — заново     Esc — меню     M — звук',W/2,H*.48,20,'#fff');}
+  txt(ctx,'Esc или P — продолжить     M — звук     Заново и Меню — кнопками ниже',W/2,H*.48,20,'#fff');}
  if(mode==='results'){ctx.fillStyle='rgba(6,8,12,.78)';ctx.fillRect(0,0,W,H);const rk=[...players].sort((a,b)=>place(a)-place(b)),w=rk[0];
   txt(ctx,'ПОБЕДИТЕЛЬ',W*.22,H*.12,18,'rgba(255,255,255,.8)','600');portrait(w.ch,W*.22,H*.36,Math.min(70,H*.17),PCOL[w.i]);
   txt(ctx,w.ch.name.toUpperCase(),W*.22,H*.62,Math.min(30,H*.08),'#fff','italic 900');txt(ctx,who(w),W*.22,H*.71,14,'rgba(255,255,255,.75)','');
