@@ -42,7 +42,7 @@ const TAUNTS=['Не догонишь!','Ха-ха, черепаха!','Пока-
 const PCOL=['#3d8bff','#ff4f7b','#2ee6a6','#ffb020','#b06bff','#ff6a3d']; // цвета гонщиков (неон колеса, метки)
 const PHOTO={};for(const ch of CHARS){const im=new Image();im.src=FACES[ch.id];PHOTO[ch.name]=im;}
 const KEYS=[
- {up:'KeyW',down:'KeyS',left:'KeyA',right:'KeyD',jump:['Space','KeyX'],hit:['KeyF']},
+ {up:'KeyW',down:'KeyS',left:'KeyA',right:'KeyD',jump:['Space'],hit:['KeyF']},
  {up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',jump:['Enter','NumpadEnter'],hit:['AltRight','Slash']}];
 const HITS_TO_FALL=2;              // сколько ударов нужно, чтобы сбить с колеса
 const TRACK_SEGS=5200;             // длина трассы
@@ -943,7 +943,9 @@ addEventListener('keydown',e=>{if(GAMEKEYS.has(e.code))e.preventDefault();down.a
 addEventListener('keyup',e=>{if(GAMEKEYS.has(e.code))e.preventDefault();down.delete(e.code);});
 addEventListener('blur',()=>down.clear());
 document.addEventListener('visibilitychange',()=>down.clear());
-function onPress(c){if(mode==='hero'){if(c==='Escape'){heroSave();mode=HERO_BACK;}return;}if(mode==='net'){if(c==='Escape')netLeave();return;}if(mode==='select'&&c==='KeyN'){netOpen();return;}
+const KDIAG=/[?&]keys=1/.test(location.search),KLOG=[];
+function klog(t){if(!KDIAG)return;KLOG.push(t);if(KLOG.length>8)KLOG.shift();}
+function onPress(c){klog(c.replace('Key','').replace('Arrow','↑').replace('Space','␣'));if(mode==='hero'){if(c==='Escape'){heroSave();mode=HERO_BACK;}return;}if(mode==='net'){if(c==='Escape')netLeave();return;}if(mode==='select'&&c==='KeyN'){netOpen();return;}
  if(c==='KeyM'){MUTED=!MUTED;musicTick();return;}
  if(mode==='select'&&(c==='Digit1'||c==='Numpad1')){sel.solo=true;sel.ready[1]=false;return;}
  if(mode==='select'&&(c==='Digit2'||c==='Numpad2')){sel.solo=false;return;}
@@ -956,7 +958,7 @@ function onPress(c){if(mode==='hero'){if(c==='Escape'){heroSave();mode=HERO_BACK
  if(mode==='select'){for(const i of[0,1]){const k=KEYS[i];if(sel.solo&&i===1)continue;if(!sel.ready[i]){if(c===k.left)sel.c[i]=(sel.c[i]+SELN-1)%SELN;if(c===k.right)sel.c[i]=(sel.c[i]+1)%SELN;}
    if(k.jump.includes(c))sel.ready[i]=true;}
   if(sel.ready[0]&&(sel.solo||sel.ready[1]))startRace();}
- else if(mode==='race'){for(const p of players){if(p.ai||p.remote)continue;const k=KEYS[p.ki!==undefined?p.ki:p.i];if(c===k.left)p.lastSteer=-1;if(c===k.right)p.lastSteer=1;if(k.jump.includes(c))jump(p);if(k.hit.includes(c))punch(p);}}
+ else if(mode==='race'){for(const p of players){if(p.ai||p.remote)continue;const k=KEYS[p.ki!==undefined?p.ki:p.i];if(c===k.left)p.lastSteer=-1;if(c===k.right)p.lastSteer=1;if(k.jump.includes(c)){klog('ПРЫЖОК('+c+')');jump(p);}if(k.hit.includes(c))punch(p);}}
  else if(mode==='results'&&race.resT>1.5&&['Space','KeyX','Enter','NumpadEnter'].includes(c))toMenu();
 }
 const other=p=>players.filter(q=>q!==p).reduce((m,q)=>Math.abs(q.z-p.z)+Math.abs(q.x-p.x)*800<Math.abs(m.z-p.z)+Math.abs(m.x-p.x)*800?q:m);
@@ -1076,7 +1078,7 @@ function updatePlayer(p,dt){
   else if(prevZ<=o.z+o.L&&p.z>=o.z-20){
    if(o.t==='pit'&&p.jh<30&&p.lastPud!==o){p.lastPud=o;p.speed*=.9;p.slipT=1.4;p.slipDir=Math.random()<.5?-1:1;fx(p,'splash',22);sfx('skid',p);continue;}   // споткнулся
    if(o.t==='hole'&&p.jh<40){if(p.wobT>0||p.tripT>0)crash(p,'ЯМА!');else{p.speed*=.38;p.tripT=1.3;p.msg='ОХ!';p.msgT=.9;p.invul=.45;}break;}
-    if(o.t==='ramp'&&p.lastRamp!==o&&p.jh<220){p.lastRamp=o;if(p.jumpBuf>0){p.vy=JUMPV*1.45;p.jh=Math.max(p.jh,1);p.rampT=.4;p.superJ=false;p.boostT=Math.max(p.boostT,1);fx(p,'spark',14);shake(p,.2);sfx('ramp',p);}else if(p.jh<=0){p.boostT=Math.max(p.boostT||0,.8);p.landT=.15;fx(p,'dust',6);}continue;}
+    if(o.t==='ramp'&&p.lastRamp!==o&&p.jh<220){p.lastRamp=o;if(p.jumpBuf>0){p.vy=JUMPV*1.45;p.jh=Math.max(p.jh,1);p.rampT=.4;p.superJ=false;p.boostT=Math.max(p.boostT,1);fx(p,'spark',14);shake(p,.2);sfx('ramp',p);}else if(p.jh<=0){p.boostT=Math.max(p.boostT||0,.8);}continue;}
     if(o.t==='barrier'&&p.lastBar!==o){p.lastBar=o;if(p.jh<110&&!o.down){o.down=1;hitStage(p,'БАРЬЕР!',p.speed*.4,'БАРЬЕР!');p.invul=.6;break;}if(!p.ai){p.msg='ОП-ПА!';p.msgT=.5;}continue;}
     if(o.t==='plug'&&p.lastPlug!==o&&(o.air?p.jh>=140:p.jh<160)){p.lastPlug=o;p.boostT=o.air?4:3;p.msg=o.air?'ЗАРЯД В ПОЛЁТЕ! ⚡':'ЗАРЯД! ⚡';p.msgT=1;fx(p,'ring',1);fx(p,'boost',18);p.flash=.35;sfx('plug',p);continue;}
    if(o.t==='sc'&&!o.dead&&p.jh<90){o.dead=true;o.kv=p.speed*.7;hitStage(p,'ОЙ!',p.speed*.5);break;}}
@@ -1578,7 +1580,7 @@ function heroStrip(y){const n=CHARS.length+1,r=Math.min(H*.055,W/(n*2.7)),my=NET
   if(c===-1&&(!HERO||my===-1)){if(HERO)face(-1,x,y,r,true);else{ctx.strokeStyle=PCOL[0];ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();txt(ctx,'✎',x,y+1,r*.9,PCOL[0],'');}UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:heroOpen});continue;}face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c:c===-1?HERO:c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
  if(typeof TILT_WANT!=='undefined')btn(8,8,Math.min(190,W*.24),Math.min(34,H*.085),'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11d · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11e · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
@@ -1731,6 +1733,7 @@ function drawHUD(p,vw,vh){
  const kk=KEYS[p.i],labs=p.i?['↑','←','↓','→','⏎','⌥']:['W','A','S','D','␣','F'],codes=[kk.up,kk.left,kk.down,kk.right,kk.jump,kk.hit];
  if(false)for(let j=0;j<6;j++){const on=[].concat(codes[j]).some(c=>isDown(c));rr(ctx,12+j*24,80,21,19,5,on?PCOL[p.i]:'rgba(8,6,14,.6)');txt(ctx,labs[j],22.5+j*24,90,11,'#fff');}
  
+ if(KDIAG){rr(ctx,8,vh-40,Math.min(vw-16,560),30,8,'rgba(0,0,0,.6)');ctx.font='bold 14px Arial';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText('клавиши: '+KLOG.join('  '),18,vh-25);ctx.textAlign='center';}
  if(race.t<0)txt(ctx,String(Math.ceil(-race.t)>3?3:Math.ceil(-race.t)),vw/2,vh*.3,120,'#ffd400','bold','#000');
  else if(race.t<.9)txt(ctx,'ПОЕХАЛИ!',vw/2,vh*.3,Math.min(90,vw/7),'#ffd400','bold','#000');
  if(false)txt(ctx,p.i?'↑ газ  ↓ тормоз  ←→ руль  Enter прыжок  Right Option удар':'W газ  S тормоз  A/D руль  Пробел прыжок  F удар',vw/2,vh*.45,15,'#fff','bold','#000');
