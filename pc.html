@@ -57,7 +57,7 @@ const WALLX=2.05;                  // где начинаются стены д�
 const LAT=1.5;                     // скорость бокового смещения (руль)
 
 const SEG=200,ROADW=2000,CAMH=1000,DEPTH=1/Math.tan(50*Math.PI/180),PLAYERZ=CAMH*DEPTH,DRAW=140,START=8;
-const ROLL=MAXS*.03,DRAG=MAXS*.12,OFFDRAG=MAXS*.6,CENTRI=.04,G=6200,JUMPV=1500,FALL_T=2.6,BUMP=MAXS*.3;
+const ROLL=MAXS*.03,DRAG=MAXS*.12,OFFDRAG=MAXS*.6,CENTRI=.075,G=6200,JUMPV=1500,FALL_T=2.6,BUMP=MAXS*.3;
 const shade=(hex,f)=>{const n=parseInt(hex.slice(1),16),c=v=>Math.round(clamp(v*f,0,255));return`rgb(${c(n>>16)},${c(n>>8&255)},${c(n&255)})`;};
 
 // ===== утилиты =====
@@ -986,7 +986,7 @@ function aiDanger(p,lane){const look=Math.max(1500,p.speed*.7);
  for(const o of obs){const dz=o.z-p.z;if(dz<0||dz>look||o.t==='moto'||o.t==='plug'||o.t==='ramp'||o.t==='ped'||o.t==='birds'||o.t==='pit'||o.t==='hole'||o.t==='sc')continue;
   if((o.t==='rider'||o.t==='bike')&&o.state!=='ride')continue;if(o.sp>=p.speed)continue;
   if(Math.abs(o.x-lane)<(o.w+.14)/2+.05)return dz;}return 0;}
-function aiInput(p,dt){p.aiT=(p.aiT||0)-dt;if(p.aiLane===undefined)p.aiLane=p.x;
+function aiInput(p,dt){if(p.aiDr>0){p.aiDr-=dt;return{s:p.aiDrS,t:.7,b:1};}{const cv=segAt(p.z).curve;if(race.t>3&&p.speed>MAXS*.7&&Math.abs(cv)>3&&Math.random()<dt*.35){p.aiDr=.9+Math.random()*1.2;p.aiDrS=Math.sign(cv);}}p.aiT=(p.aiT||0)-dt;if(p.aiLane===undefined)p.aiLane=p.x;
  if(p.aiT<=0){p.aiT=.45;if(aiDanger(p,p.aiLane)){const ls=[-.66,0,.66].filter(l=>!aiDanger(p,l)).sort((a,b)=>Math.abs(a-p.x)-Math.abs(b-p.x));if(ls.length)p.aiLane=ls[0];}else if(race.t>6&&Math.random()<.3*p.aggr){const op=other(p),dz=op.z-p.z;if(op.state==='ride'&&dz>-300&&dz<1200){const l=clamp(op.x,-.8,.8);if(!aiDanger(p,l))p.aiLane=l;}}}
  for(const o of obs){if(!(o.t==='pit'||o.t==='hole'||o.t==='barrier'||(o.t==='sc'&&!o.dead)))continue;const dz=o.z-p.z;
   if(dz>0&&dz<p.speed*.16+60&&Math.abs(o.x-p.x)<(o.w+.12)/2){if(p.aiSeen!==o){p.aiSeen=o;p.aiJump=Math.random()<p.jumpP;}if(p.aiJump)jump(p);break;}}
@@ -995,9 +995,9 @@ function aiInput(p,dt){p.aiT=(p.aiT||0)-dt;if(p.aiLane===undefined)p.aiLane=p.x;
   if(tg&&Math.random()<dt*1.3*p.aggr)punch(p);}
  const d=p.aiLane-p.x,bl=aiDanger(p,p.aiLane),b=bl&&bl<p.speed*.35?1:0;
  return{s:Math.abs(d)>.04?Math.sign(d):0,t:b?0:(()=>{const lead=p.z-Math.max(...HUM.map(h=>h.z));return lead>6000?.72:lead<-9000?p.skill+.12:p.skill;})(),b};}
-function crash(p,msg,dir){sfx('crash',p);fx(p,'spark',22);fx(p,'dust',10);shake(p,1);HS=Math.max(HS,.07);p.state='fall';p.fallT=0;p.fallDir=dir||(Math.random()<.5?-1:1);p.msg=msg;p.msgT=1.3;p.punchT=0;p.hitPending=false;}
+function crash(p,msg,dir){p.drift=0;sfx('crash',p);fx(p,'spark',22);fx(p,'dust',10);shake(p,1);HS=Math.max(HS,.07);p.state='fall';p.fallT=0;p.fallDir=dir||(Math.random()<.5?-1:1);p.msg=msg;p.msgT=1.3;p.punchT=0;p.hitPending=false;}
 // первый удар — потеря скорости и раскачка, второй пока шатает — падение
-function hitStage(p,msg,keep,soft){sfx('bump',p);fx(p,'spark',12);shake(p,.55);HS=Math.max(HS,.05);if(p.wobT>0||p.tripT>0){crash(p,msg);return true;}p.speed=keep;p.wobT=1;p.msg=soft||'ТУК!';p.msgT=.8;p.invul=.35;return false;}
+function hitStage(p,msg,keep,soft){if(p.drift){p.drift=0;crash(p,msg);return true;}sfx('bump',p);fx(p,'spark',12);shake(p,.55);HS=Math.max(HS,.05);if(p.wobT>0||p.tripT>0){crash(p,msg);return true;}p.speed=keep;p.wobT=1;p.msg=soft||'ТУК!';p.msgT=.8;p.invul=.35;return false;}
 function bump(p,msg,keep){p.speed=keep;p.wobT=.6;p.msg=msg;p.msgT=.8;p.invul=.35;}
 function updatePlayer(p,dt){
  const seg=segAt(p.z),k=KEYS[p.ki!==undefined?p.ki:p.i];let sp=p.speed/MAXS;
@@ -1012,6 +1012,14 @@ function updatePlayer(p,dt){
   else{const L=isDown(k.left),R=isDown(k.right);steer=L&&R?p.lastSteer:R?1:L?-1:0;if(TILT_ON&&!L&&!R)steer=TILT;
   if(p.fin)brk=.4;else{thr=isDown(k.up)?1:0;brk=isDown(k.down)?1:0;}}
  }
+ /* ДРИФТ: на скорости зажать тормоз + руль — колесо скользит, копится ускорение на выходе (3 ступени) */
+ if(p.state==='ride'&&!p.fin&&race.t>=0){const spd=p.speed/MAXS;
+  if(!p.drift&&brk>.5&&steer&&spd>.55&&p.jh<=0){p.drift=1;p.driftT=0;p.driftDir=Math.sign(steer);}
+  if(p.drift){p.driftT+=dt;const st2=p.driftT>2.2?3:p.driftT>1.3?2:p.driftT>.6?1:0;
+   if(brk<.5||!steer||spd<.4||p.jh>0){const B=[0,.8,1.4,2.2][st2];if(B){p.boostT=Math.max(p.boostT||0,B);fx(p,'ring',1);fx(p,'boost',8+st2*5);sfx('plug',p);shake(p,.15*st2);}p.drift=0;}
+   else{brk=0;thr=Math.max(thr,.8);steer=Math.sign(steer);p.fxD=(p.fxD||0)+dt*30;while(p.fxD>1){p.fxD--;fx(p,'smoke',1);if(st2)fx(p,st2===3?'boost':'spark',1);}
+    if((p.skidT=(p.skidT||0)-dt)<=0){p.skidT=.18;sfx('skid',p);}}}
+  else if(p.jh<=0&&Math.abs(seg.curve)>3&&spd>.75&&Math.random()<dt*8)fx(p,'smoke',1);}
  p.steer=steer;
  if(p.state==='ride'){
   // газ и тормоз нажимаются плавно; тормоз дожимается ~0.5 с
@@ -1030,14 +1038,14 @@ function updatePlayer(p,dt){
   sp=p.speed/MAXS;const asp=Math.abs(sp);
   // руль: вбок смещаемся только в движении, на месте — просто наклон
   const maxLat=LAT*(.3+.7*asp)*Math.min(1,asp*8);
-  p.vx+=(steer*maxLat-p.vx)*Math.min(1,dt*(steer?14:7)*(p.jh>0?.35:1)*(p.tripT>0?.4:1)*(p.slipT>0?.22:1));
+  p.vx+=(steer*maxLat*(p.drift?.5:1)-p.vx)*Math.min(1,dt*(steer?14:7)*(p.jh>0?.35:1)*(p.tripT>0?.4:1)*(p.slipT>0?.22:1));
   p.pitch+=(p.thr*(1-.7*asp)-p.brk*Math.min(1,asp*4)*(p.speed>0?1:0)-(p.speed<0?.35:0)-p.pitch)*Math.min(1,dt*6);
  }
  p.kv*=Math.exp(-3*dt);
- p.x+=(p.vx+p.kv)*dt-dt*2*sp*Math.abs(sp)*seg.curve*CENTRI;
+ p.x+=(p.vx+p.kv)*dt-dt*2*sp*Math.abs(sp)*seg.curve*CENTRI*(p.drift?.3:1);
  if(Math.abs(p.x)>1.9){p.x=clamp(p.x,-1.9,1.9);p.vx=0;p.kv=0;}
  const still=1-Math.min(1,Math.abs(sp)*5);
- p.lean+=(clamp(p.vx*.24+steer*.2*still,-.32,.32)-p.lean)*Math.min(1,dt*9);
+ p.lean+=(clamp(p.vx*.24+steer*.2*still+(p.drift?p.driftDir*.22:0),-.5,.5)-p.lean)*Math.min(1,dt*9);
  if(p.jh>0){p.vy-=G*dt;p.jh+=p.vy*dt;if(p.jh<=0){const hard=-p.vy/JUMPV;p.jh=0;p.vy=0;p.landT=.2;if(p.state==='ride'){fx(p,'dust',Math.round(6+8*hard));sfx('land',p,hard);if(hard>1.1)shake(p,.3);}}}
  p.trauma=Math.max(0,(p.trauma||0)-dt*1.5);p.flash=Math.max(0,(p.flash||0)-dt);
   if(p.state==='ride'&&p.jh<=0&&nearHum(p)){const a=Math.abs(sp);
@@ -1410,6 +1418,7 @@ function sfx(n,p,v,by){if(!AC||MUTED||mode!=='race')return;if(p&&p.ai&&!(by&&!by
  else if(n==='land'){const k=clamp(v||1,0,2);tone('sine',110,45,.14,.22+.14*k);noise(.12,.12+.1*k,'lowpass',900);}
  else if(n==='plug'){tone('triangle',660,660,.09,.18);tone('triangle',990,990,.09,.18,.07);tone('triangle',1320,1320,.16,.18,.14);}
  else if(n==='swing')noise(.12,.1,'bandpass',1800,.8);
+ else if(n==='skid')noise(.2,.12,'bandpass',2600,3);
  else if(n==='punch'){tone('sine',150,55,.12,.45);noise(.08,.32,'lowpass',1500);}
  else if(n==='bump'){tone('square',220,70,.15,.16);noise(.18,.3,'bandpass',900,.7);}
  else if(n==='crash'){tone('sawtooth',160,40,.4,.22);noise(.45,.42,'lowpass',1200);noise(.25,.22,'highpass',3000,1,.05);}
@@ -1565,7 +1574,7 @@ function heroStrip(y){const n=CHARS.length+1,r=Math.min(H*.055,W/(n*2.7)),my=NET
   if(c===-1&&(!HERO||my===-1)){if(HERO)face(-1,x,y,r,true);else{ctx.strokeStyle=PCOL[0];ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();txt(ctx,'✎',x,y+1,r*.9,PCOL[0],'');}UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:heroOpen});continue;}face(c,x,y,r,my===c);UI.push({x:x-r,y:y-r,w:r*2,h:r*2,fn:()=>{sel.c[0]=c;if(NET){NET.myC=c;if(NET.role==='host')netRoster();else netSend({t:'hero',c:c===-1?HERO:c});}}});}}
 function renderNet(){const ink='#16181d',mute='#8a8f98',red='#e8262c',bh=Math.min(46,H*.11),fs=Math.min(14,W/55);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
  if(typeof TILT_WANT!=='undefined')btn(8,8,Math.min(190,W*.24),Math.min(34,H*.085),'Руль: '+(TILT_WANT?(TILT_ST==='ok'?'наклон ✓':'наклон 📱'):'кнопки ◀ ▶'),()=>{TILT_WANT=!TILT_WANT;if(!TILT_WANT)TILT_ON=false;else if(TILT_ST==='nosensor'||TILT_ST==='tap')TILT_ST='off';});
- txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11 · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
+ txt(ctx,'ИГРА ПО СЕТИ · ДО 6 ЧЕЛОВЕК',W/2,H*.07,Math.min(24,W/30),ink,'900');txt(ctx,'версия 05.11b · сервер: '+(NET&&NET.peer?(NET.peer.open&&!NET.peer.disconnected?'на связи ✓':'нет связи'):'—'),W/2,H-4-Math.min(46,H*.11)-10,Math.min(11,W/70),mute,'');
  if(!NET){txt(ctx,'Каждый играет на своём телефоне или ноутбуке. Один создаёт заезд, остальные вводят код.',W/2,H*.16,fs,mute,'');
   const bw=Math.min(280,(W-60)/2);btn(W/2-bw-10,H*.25,bw,bh,'Создать заезд',()=>netHost(),true);
   btn(W/2+10,H*.25,bw,bh,'Присоединиться по коду',()=>{const c=prompt('Код заезда (4 буквы):');if(c)netJoin(c);});
@@ -1721,7 +1730,7 @@ function drawHUD(p,vw,vh){
  if(race.t<0)txt(ctx,String(Math.ceil(-race.t)>3?3:Math.ceil(-race.t)),vw/2,vh*.3,120,'#ffd400','bold','#000');
  else if(race.t<.9)txt(ctx,'ПОЕХАЛИ!',vw/2,vh*.3,Math.min(90,vw/7),'#ffd400','bold','#000');
  if(race.t<5&&!paused&&mode==='race')txt(ctx,p.i?'↑ газ  ↓ тормоз  ←→ руль  Enter прыжок  Right Option удар':'W газ  S тормоз  A/D руль  Пробел прыжок  F удар',vw/2,vh*.45,15,'#fff','bold','#000');
-  if(race.t<5&&!paused&&mode==='race')txt(ctx,'Барьер — прыгай!  Трамплин + прыжок в полёте = СУПЕРПРЫЖОК',vw/2,vh*.45+24,15,'#ffd400','bold','#000');
+  if(race.t<5&&!paused&&mode==='race')txt(ctx,'Барьер — прыгай!  Трамплин + прыжок в полёте = СУПЕРПРЫЖОК  ·  тормоз + руль на скорости = ДРИФТ',vw/2,vh*.45+24,15,'#ffd400','bold','#000');
  if(p.fin){txt(ctx,place(p)===1?'ПОБЕДА!':'ФИНИШ!',vw/2,vh*.22,Math.min(80,vw/8),place(p)===1?'#ffd400':'#fff','bold','#000');const left=players.filter(q=>!q.fin).length;if(left)txt(ctx,'ждём остальных: '+left,vw/2,vh*.31,22,'#fff','bold','#000');}
  if(p.state==='fall'&&p.fallT>1.5)txt(ctx,'встаю на колесо…',vw/2,vh*.9,20,'#fff','bold','#000');
 }
